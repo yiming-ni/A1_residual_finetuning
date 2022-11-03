@@ -43,6 +43,32 @@ config_flags.DEFINE_config_file(
     'File path to the training hyperparameter configuration.',
     lock_config=False)
 
+def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
+    videos = []
+
+    # def get_image(env):
+    #     img = env.render(mode='rgb_array')
+    #     img = img.transpose(2, 0, 1)
+    #     img = img * 255
+    #     img = img.astype(np.uint8)
+    #     return img
+
+    for _ in range(num_episodes):
+        observation, done = env.reset(), False
+        while not done:
+            # img = get_image(env)
+            img = env.render(mode='rgb_array', width=128, height=128)
+            videos.append(img)
+            action = agent.eval_actions(observation)
+            observation, _, done, _ = env.step(action)
+    # img = env.render(mode='rgb_array')
+    # videos.append(img)
+    eval_info = {
+        'return': np.mean(env.return_queue),
+        'length': np.mean(env.length_queue),
+        'video': wandb.Video(np.stack(videos).transpose(0,3,1,2), fps=20, format="gif")
+    }
+    return eval_info
 
 def main(_):
     wandb.init(project='a1')
@@ -61,23 +87,25 @@ def main(_):
 
     env = wrap_gym(env, rescale_actions=True)
     env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
-    env = gym.wrappers.RecordVideo(
-        env,
-        f'videos/train_{FLAGS.action_filter_high_cut}',
-        episode_trigger=lambda x: True)
+    # env = gym.wrappers.RecordVideo(
+    #     env,
+    #     f'videos/train_{FLAGS.action_filter_high_cut}',
+    #     episode_trigger=lambda x: True)
     env.seed(FLAGS.seed)
-
+    # import ipdb; ipdb.set_trace()
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
             control_frequency=FLAGS.control_frequency,
             action_filter_high_cut=FLAGS.action_filter_high_cut,
             action_history=FLAGS.action_history)
+
         eval_env = wrap_gym(eval_env, rescale_actions=True)
-        eval_env = gym.wrappers.RecordVideo(
-            eval_env,
-            f'videos/eval_{FLAGS.action_filter_high_cut}',
-            episode_trigger=lambda x: True)
+        eval_env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=FLAGS.eval_episodes)
+        # eval_env = gym.wrappers.RecordVideo(
+        #     eval_env,
+        #     f'videos/eval_{FLAGS.action_filter_high_cut}',
+        #     episode_trigger=lambda x: True)
         eval_env.seed(FLAGS.seed + 42)
 
     kwargs = dict(FLAGS.config)
@@ -143,7 +171,12 @@ def main(_):
 
         if i % FLAGS.eval_interval == 0:
             if not FLAGS.real_robot:
-                eval_info = evaluate(agent,
+                if FLAGS.save_video:
+                    eval_info = evaluate_with_video(agent,
+                                         eval_env,
+                                         num_episodes=FLAGS.eval_episodes)
+                else:
+                    eval_info = evaluate(agent,
                                      eval_env,
                                      num_episodes=FLAGS.eval_episodes)
                 for k, v in eval_info.items():

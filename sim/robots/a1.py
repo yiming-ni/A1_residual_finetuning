@@ -40,6 +40,10 @@ class A1Observables(base.WalkerObservables):
             self.sensors_gyro, self.sensors_velocimeter, self.sensors_framequat
         ] + self._collect_from_attachments('kinematic_sensors'))
 
+    @composer.observable
+    def body_position(self):
+        return observable.MJCFFeature('xpos', self._entity.root_body)
+
 
 class A1(base.Walker):
     _INIT_QPOS = np.asarray([0.05, 0.7, -1.4] * 4)

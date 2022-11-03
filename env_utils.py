@@ -6,6 +6,7 @@ from dm_control import composer
 from dmcgym import DMCGYM
 from gym import spaces
 from gym.wrappers import FlattenObservation
+from sim.wrappers.residual import ResidualWrapper
 
 import sim
 from filter import ActionFilterWrapper
@@ -59,6 +60,7 @@ def make_env(task_name: str,
 
     env = DMCGYM(env)
     env = FlattenObservation(env)
+    env = ResidualWrapper(env)
 
     return env
 
