@@ -14,6 +14,6 @@ def wrap_gym(env: gym.Env, rescale_actions: bool = True) -> gym.Env:
     if isinstance(env.observation_space, gym.spaces.Dict):
         env = FlattenObservation(env)
 
-    env = gym.wrappers.ClipAction(env)
+    # env = gym.wrappers.ClipAction(env)
 
     return env

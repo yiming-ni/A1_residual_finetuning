@@ -25,7 +25,7 @@ def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
     return 10 * reward  # [0, 1] => [0, 10]
 
 
-class Run(composer.Task):
+class Walk(composer.Task):
 
     def __init__(self,
                  robot,
@@ -50,13 +50,15 @@ class Run(composer.Task):
         self._robot = robot
         self._floor.add_free_entity(self._robot)
 
-        observables = (self._robot.observables.proprioception +
-                       self._robot.observables.kinematic_sensors +
+        observables = ([self._robot.observables.a_prev_observation] +
+                       [self._robot.observables.curr_observation] +
                        [self._robot.observables.prev_action])
+        # observables = ([self._robot.observables.curr_observation])
+
         for observable in observables:
             observable.enabled = True
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         # look at observables
 
         if not add_velocity_to_observations:
@@ -117,6 +119,7 @@ class Run(composer.Task):
                                     qpos=self._robot._INIT_QPOS)
 
     def before_step(self, physics, action, random_state):
+        # self._robot.update_actions(physics, action, random_state)
         pass
 
     def before_substep(self, physics, action, random_state):
@@ -126,6 +129,7 @@ class Run(composer.Task):
         return self._robot.action_spec
 
     def after_step(self, physics, random_state):
+        # self._robot.update_observations(physics)
         self._failure_termination = False
 
         if self._terminate_pitch_roll is not None:
@@ -147,3 +151,7 @@ class Run(composer.Task):
     @property
     def root_entity(self):
         return self._floor
+
+    @property
+    def robot(self):
+        return self._robot

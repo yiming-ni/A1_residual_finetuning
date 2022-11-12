@@ -52,6 +52,12 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     #     img = img * 255
     #     img = img.astype(np.uint8)
     #     return img
+    f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
+    acs_gt = pickle.load(f)
+    f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
+    obs_gt = pickle.load(f)
+    counter = 0
+    import sim
 
     for _ in range(num_episodes):
         observation, done = env.reset(), False
@@ -59,8 +65,18 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
             # img = get_image(env)
             img = env.render(mode='rgb_array', width=128, height=128)
             videos.append(img)
-            action = agent.eval_actions(observation)
+            # action = env.env.env.env.env.env.get_action_from_numpy(obs_gt[counter])
+            # import ipdb; ipdb.set_trace()
+            action = env.env.env.env.env.env.get_action_from_numpy(observation)
+            # action = agent.eval_actions(observation)
+
+            # ground_truth_action = acs_gt[counter]
+            # ground_truth_obs = obs_gt[counter]
+            # action = acs_gt[counter]
+            # import ipdb; ipdb.set_trace()
+
             observation, _, done, _ = env.step(action)
+            counter += 1
     # img = env.render(mode='rgb_array')
     # videos.append(img)
     eval_info = {
@@ -71,6 +87,11 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     return eval_info
 
 def main(_):
+    # f = open('/home/yiming-ni/A1_dribbling/A1-RL-Exp-MuJoCo/A1Env/igacs2.pt', "rb")
+    # acs_gt = pickle.load(f)
+    g = open("/home/yiming-ni/A1_dribbling/A1-RL-Exp-MuJoCo/A1Env/igobs.pt", "rb")
+    obss_gt = pickle.load(g)
+    # import ipdb; ipdb.set_trace()
     wandb.init(project='a1')
     wandb.config.update(FLAGS)
 
@@ -85,14 +106,15 @@ def main(_):
             action_filter_high_cut=FLAGS.action_filter_high_cut,
             action_history=FLAGS.action_history)
 
-    env = wrap_gym(env, rescale_actions=True)
+    env = wrap_gym(env, rescale_actions=False)
     env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
     # env = gym.wrappers.RecordVideo(
     #     env,
     #     f'videos/train_{FLAGS.action_filter_high_cut}',
     #     episode_trigger=lambda x: True)
     env.seed(FLAGS.seed)
-    # import ipdb; ipdb.set_trace()
+    # print('our reset', env.reset())
+    # print('IG reset', obss_gt[0])
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
@@ -100,7 +122,7 @@ def main(_):
             action_filter_high_cut=FLAGS.action_filter_high_cut,
             action_history=FLAGS.action_history)
 
-        eval_env = wrap_gym(eval_env, rescale_actions=True)
+        eval_env = wrap_gym(eval_env, rescale_actions=False)
         eval_env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=FLAGS.eval_episodes)
         # eval_env = gym.wrappers.RecordVideo(
         #     eval_env,
@@ -116,7 +138,8 @@ def main(_):
     os.makedirs(chkpt_dir, exist_ok=True)
     buffer_dir = 'saved/buffers'
 
-    last_checkpoint = checkpoints.latest_checkpoint(chkpt_dir)
+    # last_checkpoint = checkpoints.latest_checkpoint(chkpt_dir)
+    last_checkpoint = None
 
     if last_checkpoint is None:
         start_i = 0
@@ -136,9 +159,11 @@ def main(_):
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
         if i < FLAGS.start_training:
-            action = env.action_space.sample()
+            # action = env.action_space.sample()
+            action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
         else:
-            action, agent = agent.sample_actions(observation)
+            # action, agent = agent.sample_actions(observation)
+            action = env.env.env.env.env.env.get_action_from_numpy(observation)
         next_observation, reward, done, info = env.step(action)
 
         if not done or 'TimeLimit.truncated' in info:

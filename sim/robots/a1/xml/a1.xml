@@ -13,11 +13,13 @@
         <mesh name="thigh_mirror" file="thigh_mirror.stl" />
         <mesh name="calf" file="calf.stl" />
         <mesh name="thigh" file="thigh.stl" />
+        <material name="ball" rgba="1 1 0 1"/>
     </asset>
 
     <worldbody>
         <body name="trunk" pos="0 0 0.3">
             <inertial pos="0.0127283 0.00218554 0.000514891" quat="0.00186575 0.711506 0.000389649 0.702677" mass="4.714" diaginertia="0.0648213 0.0565803 0.0169323" />
+<!--            <joint type="free" limited="false"/>-->
             <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.913725 0.913725 0.847059 1" mesh="trunk" />
             <geom size="0.1335 0.066 0.057" type="box" rgba="0.913725 0.913725 0.847059 0" />
             <geom size="0.0005 0.0005 0.0005" type="box" contype="0" conaffinity="0" group="1" rgba="0.8 0 0 0" />
@@ -104,6 +106,12 @@
                     </body>
                 </body>
             </body>
+        </body>
+
+        <body name="ball" pos="3 0 0.097">
+            <inertial pos="0 0 0" mass="0.318" />
+<!--            <joint name="ball" type="free" limited="false"/>-->
+            <geom name="ball_geom" type="sphere" size="0.097" material="ball" group="0" solref="-500 -0.3"/>
         </body>
     </worldbody>
 

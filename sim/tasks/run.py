@@ -56,7 +56,7 @@ class Run(composer.Task):
         for observable in observables:
             observable.enabled = True
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         # look at observables
 
         if not add_velocity_to_observations:

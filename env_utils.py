@@ -7,11 +7,12 @@ from dmcgym import DMCGYM
 from gym import spaces
 from gym.wrappers import FlattenObservation
 from sim.wrappers.residual import ResidualWrapper
+from sim.wrappers.misc import EnvironmentWrapper, DMCGYMWrapper, ClipActionWrapper
 
 import sim
 from filter import ActionFilterWrapper
 from sim.robots import A1
-from sim.tasks import Run
+from sim.tasks import Run, Walk
 
 
 class ClipAction(gym.ActionWrapper):
@@ -44,21 +45,24 @@ class ClipAction(gym.ActionWrapper):
 
 def make_env(task_name: str,
              control_frequency: int = 33,
-             randomize_ground: bool = True,
+             randomize_ground: bool = False,
              action_history: int = 1):
     robot = A1(action_history=action_history)
     # robot.kd = 5
 
     if task_name == 'A1Run-v0':
-        task = Run(robot,
+        task = Walk(robot,
                    control_timestep=round(1.0 / control_frequency, 3),
                    randomize_ground=randomize_ground)
     else:
         raise NotImplemented
 
-    env = composer.Environment(task, strip_singleton_obs_buffer_dim=True)
+    # env = composer.Environment(task, strip_singleton_obs_buffer_dim=True)
+    # env = DMCGYM(env)
+    # env = FlattenObservation(env)
 
-    env = DMCGYM(env)
+    env = EnvironmentWrapper(task, strip_singleton_obs_buffer_dim=True)
+    env = DMCGYMWrapper(env)
     env = FlattenObservation(env)
     env = ResidualWrapper(env)
 
@@ -79,20 +83,23 @@ def make_mujoco_env(env_name: str,
 
     env = gym.wrappers.TimeLimit(env, 400)
 
-    env = gym.wrappers.ClipAction(env)
+    # env = gym.wrappers.ClipAction(env)
 
     if action_filter_high_cut is not None:
         env = ActionFilterWrapper(env, highcut=action_filter_high_cut)
 
     if clip_actions:
-        ACTION_OFFSET = np.asarray([0.2, 0.4, 0.4] * 4)
+        # ACTION_OFFSET = np.asarray([0.2, 0.4, 0.4] * 4)
+        ACTION_OFFSET = sim.robots.a1.A1._QPOS_OFFSET
         INIT_QPOS = sim.robots.a1.A1._INIT_QPOS
-        if env.action_space.shape[0] == 12:
-            env = ClipAction(env, INIT_QPOS - ACTION_OFFSET,
-                             INIT_QPOS + ACTION_OFFSET)
-        else:
-            env = ClipAction(
-                env, np.concatenate([INIT_QPOS - ACTION_OFFSET, [-1.0]]),
-                np.concatenate([INIT_QPOS + ACTION_OFFSET, [1.0]]))
+        # if env.action_space.shape[0] == 12:
+        #     env = ClipAction(env, INIT_QPOS - ACTION_OFFSET,
+        #                      INIT_QPOS + ACTION_OFFSET)
+        # else:
+        #     env = ClipAction(
+        #         env, np.concatenate([INIT_QPOS - ACTION_OFFSET, [-1.0]]),
+        #         np.concatenate([INIT_QPOS + ACTION_OFFSET, [1.0]]))
+
+    # import ipdb;ipdb.set_trace()
 
     return env
