@@ -1,6 +1,14 @@
 import torch
 
 
+def compute_local_pos(root_pos, target_pos, root_rot):
+    heading_rot = calc_heading_quat_inv(root_rot)
+
+    rel_target_pos = target_pos - root_pos
+    local_target_pos = my_quat_rotate(heading_rot, rel_target_pos)
+    return local_target_pos[:, :2]
+
+
 def compute_local_root_quat(root_rot):
     # type: (Tensor) -> Tensor
     heading_rot = calc_heading_quat_inv(root_rot)

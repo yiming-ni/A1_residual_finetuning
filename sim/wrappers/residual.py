@@ -12,9 +12,11 @@ from dmcgym.env import dmc_obs2gym_obs
 
 from ..wrappers.action_filter import ActionFilterButter
 
-NUM_CURR_OBS = 16
+# NUM_CURR_OBS = 16
+NUM_CURR_OBS = 18 + 3
 local_root_obs = True
-num_obs = 436
+# num_obs = 436
+num_obs = 518
 NUM_MOTORS = 12
 
 PARAMS = {
@@ -31,7 +33,8 @@ PARAMS = {
 
 ARGS = {'actions_num': 12, 'input_shape': (num_obs,), 'num_seqs': 4096, 'value_size': 1, 'amp_input_shape': (245,)}
 
-MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/gp7std3lr5e5fr033randprob9_10000.pth'
+# MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/gp7std3lr5e5fr033randprob9_10000.pth'
+MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
 
 class ResidualWrapper(gym.Wrapper):
     # class AddPreviousActions(gym.ObservationWrapper):
@@ -163,7 +166,7 @@ class ResidualWrapper(gym.Wrapper):
         # import ipdb; ipdb.set_trace()
         # obs, reward, done, info = self.env.step(actual_action)
         # obs = np.concatenate([obs, ppo_action])
-        # done=False
+        done=False
         return obs, reward, done, info
 
     def observation(self):

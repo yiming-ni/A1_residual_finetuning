@@ -12,7 +12,7 @@ from sim.wrappers.misc import EnvironmentWrapper, DMCGYMWrapper, ClipActionWrapp
 import sim
 from filter import ActionFilterWrapper
 from sim.robots import A1
-from sim.tasks import Run, Walk
+from sim.tasks import Run, Walk, Dribble
 
 
 class ClipAction(gym.ActionWrapper):
@@ -51,7 +51,7 @@ def make_env(task_name: str,
     # robot.kd = 5
 
     if task_name == 'A1Run-v0':
-        task = Walk(robot,
+        task = Dribble(robot,
                    control_timestep=round(1.0 / control_frequency, 3),
                    randomize_ground=randomize_ground)
     else:
