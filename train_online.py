@@ -52,18 +52,17 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     #     img = img * 255
     #     img = img.astype(np.uint8)
     #     return img
-    # f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
-    f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
+    f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
+    # f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
     acs_gt = pickle.load(f)
-    # f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
-    f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
+    f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
+    # f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
     obs_gt = pickle.load(f)
     counter = 0
     import sim
 
     for _ in range(num_episodes):
         observation, done = env.reset(), False
-        # observation = obs_gt[0]
         while not done:
             # img = get_image(env)
             img = env.render(mode='rgb_array', width=128, height=128)

@@ -37,21 +37,28 @@ class Walk(composer.Task):
                  add_velocity_to_observations: bool = True):
 
         self.floor_friction = floor_friction
-        if randomize_ground:
-            self._floor = HField(size=(10, 10))
-            self._floor.mjcf_model.size.nconmax = 400
-            self._floor.mjcf_model.size.njmax = 2000
-        else:
-            self._floor = arenas.Floor(size=(10, 10))
+        self._floor = HField(size=(10, 10))
+        self._floor.mjcf_model.size.nconmax = 400
+        self._floor.mjcf_model.size.njmax = 2000
+        self._ball_frame = None
+        # if randomize_ground:
+        #     self._floor = HField(size=(10, 10))
+        #     self._floor.mjcf_model.size.nconmax = 400
+        #     self._floor.mjcf_model.size.njmax = 2000
+        # else:
+        #     self._floor = arenas.Floor(size=(10, 10))
 
         for geom in self._floor.mjcf_model.find_all('geom'):
             geom.friction = floor_friction
-
+        # import ipdb; ipdb.set_trace()
         self._robot = robot
         self._floor.add_free_entity(self._robot)
 
+        # self._ball_frame = self._floor.attach(self._floor._ball)
+        # self._ball_frame.add('freejoint')
+        # self._ball_frame.pos = (-2.75, 0.1, .1)
         observables = ([self._robot.observables.a_prev_observation] +
-                       [self._robot.observables.curr_observation] +
+                       [self._robot.observables.b_robot_observation] +
                        [self._robot.observables.prev_action])
         # observables = ([self._robot.observables.curr_observation])
 
@@ -101,12 +108,27 @@ class Walk(composer.Task):
             self._floor.mjcf_model.visual.map.znear = 0.00025
             self._floor.mjcf_model.visual.map.zfar = 50.
 
-        new_friction = (random_state.uniform(low=self.floor_friction[0] - 0.25,
-                                             high=self.floor_friction[0] +
-                                             0.25), self.floor_friction[1],
-                        self.floor_friction[2])
-        for geom in self._floor.mjcf_model.find_all('geom'):
-            geom.friction = new_friction
+        # self._floor.mjcf_model.worldbody.add('geom',
+        #                                      type='sphere',
+        #                                      name='ball',
+        #                                      pos=[-2.5, .1, 0.5],
+        #                                      size=[0.9, 0.9, 0.0, 0.0])
+
+
+        if self._ball_frame:
+            self._floor._ball.detach()
+
+        self._ball_frame = self._floor.attach(self._floor._ball)
+        self._ball_frame.add('freejoint')
+        # self._floor.add_free_entity(self._floor._ball)
+        # new_friction = (random_state.uniform(low=self.floor_friction[0] - 0.25,
+        #                                      high=self.floor_friction[0] +
+        #                                      0.25), self.floor_friction[1],
+        #                 self.floor_friction[2])
+        # for geom in self._floor.mjcf_model.find_all('geom'):
+        #     geom.friction = new_friction
+
+        self._ball_frame.pos = (-2.9, 0, 1)
 
     def initialize_episode(self, physics, random_state):
         super().initialize_episode(physics, random_state)

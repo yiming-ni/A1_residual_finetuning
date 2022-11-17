@@ -31,7 +31,8 @@ MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false python train_online.py --env_n
                 --utd_ratio=20 \
                 --start_training=1000 \
                 --max_steps=100000 \
-                --config=configs/droq_config.py
+                --config=configs/droq_config.py\
+                --action_history=15
 ```
 
 To run training on the real robot, add `--real_robot=True`

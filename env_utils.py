@@ -51,7 +51,7 @@ def make_env(task_name: str,
     # robot.kd = 5
 
     if task_name == 'A1Run-v0':
-        task = Dribble(robot,
+        task = Walk(robot,
                    control_timestep=round(1.0 / control_frequency, 3),
                    randomize_ground=randomize_ground)
     else:

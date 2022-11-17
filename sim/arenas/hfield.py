@@ -14,18 +14,21 @@
 # ============================================================================
 """Bowl arena with bumps."""
 
-from dm_control import composer
+from dm_control import composer, mjcf
 from dm_control.locomotion.arenas import assets as locomotion_arenas_assets
 from dm_control.mujoco.wrapper import mjbindings
 from scipy import ndimage
 
 mjlib = mjbindings.mjlib
 
+import os
+
 # Constants related to terrain generation.
 _TERRAIN_SMOOTHNESS = .5  # 0.0: maximally bumpy; 1.0: completely smooth.
 _TERRAIN_BUMP_SCALE = .2  # Spatial scale of terrain bumps (in meters).
 
-
+ASSETS_DIR = os.path.dirname(__file__)
+_BALL_XML_PATH = os.path.join(ASSETS_DIR, 'ball.xml')
 class HField(composer.Arena):
     """A bowl arena with sinusoidal bumps."""
 
@@ -39,6 +42,7 @@ class HField(composer.Arena):
                                                  ncol=int(201 / 6 * size[0]),
                                                  size=(*size, 0.5, 0.1))
 
+        self._ball = composer.ModelWrapperEntity(mjcf.from_path(_BALL_XML_PATH))
         if aesthetic != 'default':
             ground_info = locomotion_arenas_assets.get_ground_texture_info(
                 aesthetic)

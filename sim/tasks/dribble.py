@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from typing import Optional, Tuple
 
 import dm_control.utils.transformations as tr
@@ -5,12 +6,23 @@ import numpy as np
 from dm_control import composer
 from dm_control.locomotion import arenas
 from dm_control.utils import rewards
+from dm_control.composer.observation import observable
 
 from sim.arenas import HField
 from sim.tasks.utils import _find_non_contacting_height
+from sim.robots.ball import Ball
+
+
+import torch
+
+from ..wrappers.residual import ResidualWrapper
+from ..robots.robot_utils import compute_local_root_quat, compute_local_pos
 
 DEFAULT_CONTROL_TIMESTEP = 0.03
 DEFAULT_PHYSICS_TIMESTEP = 0.001
+
+# observable class for task / how to write task_observables
+# how to init prev_observation
 
 
 def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
@@ -23,6 +35,22 @@ def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
     reward -= 0.1 * np.abs(dyaw)
 
     return 10 * reward  # [0, 1] => [0, 10]
+
+
+class DribbleObservables(composer.Observables):
+    @composer.observable
+    def a_prev_observation(self):
+        return observable.Generic(lambda _: self._entity.prev_observation)
+
+    @composer.observable
+    def curr_observation(self):
+        return observable.Generic(
+            lambda physics: self._entity.get_curr_observation(physics)
+        )
+
+    @composer.observable
+    def goal_obs(self):
+        return observable.Generic(lambda _: self._entity.goal_obs)
 
 
 class Dribble(composer.Task):
@@ -49,17 +77,21 @@ class Dribble(composer.Task):
 
         self._robot = robot
         self._floor.add_free_entity(self._robot)
+        self._ball = Ball()
+        self._floor.add_free_entity(self._ball)
 
-        observables = ([self._robot.observables.a_prev_observation] +
-                       [self._robot.observables.curr_observation] +
-                       [self._robot.observables.goal_obs] +
-                       [self._robot.observables.prev_action])
+        self._goal_obs = np.array([-0.31705597, 0.91705686])
+
+        # self._build_obs()
+        # import ipdb;ipdb.set_trace()
+        # observables = ([self._robot.observables.a_prev_observation] +
+        #                [self._robot.observables.prev_action])
         # observables = ([self._robot.observables.curr_observation])
 
-        for observable in observables:
+        for observable in self.get_observables():
             observable.enabled = True
 
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         # look at observables
 
         if not add_velocity_to_observations:
@@ -156,3 +188,38 @@ class Dribble(composer.Task):
     @property
     def robot(self):
         return self._robot
+
+    @property
+    def prev_observation(self):
+        pass
+
+    @property
+    def goal_pos(self):
+        return self._goal_obs
+
+    def get_observables(self):
+        drib_obs = DribbleObservables(self)
+        obs = []
+        for k, v in drib_obs.as_dict(fully_qualified=False).items():
+            obs.append(v)
+        obs.append(self._robot.observables.prev_action)
+        return obs
+
+    def get_curr_observation(self, physics):
+        base_quat = np.array(physics.bind(self._robot.root_body).xquat, dtype=float, copy=True)[[1, 2, 3, 0]]
+        base_pos = np.array(physics.bind(self._robot.root_body).xpos, dtype=float, copy=True)
+        ball_pos = np.array(physics.bind(self._ball.ball_body).xpos, dtype=float, copy=True)
+        ball_pos_xy = compute_local_pos(
+            torch.from_numpy(base_pos).unsqueeze(0),
+            torch.from_numpy(ball_pos).unsqueeze(0),
+            torch.from_numpy(base_quat).unsqueeze(0))[0].numpy()
+        ball_pos[:2] = ball_pos_xy
+        qpos = np.array(physics.bind(self._robot.joints).qpos, dtype=float, copy=True)
+        base_quat = torch.from_numpy(base_quat).unsqueeze(0)
+        base_quat = compute_local_root_quat(base_quat)[0].numpy()
+        # import ipdb; ipdb.set_trace()
+        return np.concatenate([base_quat, qpos, ball_pos])
+
+    def update_goal_pos(self):
+        pass
+

@@ -7,6 +7,10 @@
         <joint damping="0.01" armature="0.01" frictionloss="0.2" solreflimit="0.01 1" solimplimit="0.9 0.99 0.01" />
     </default>
 
+    <default class="bouncy">
+      <geom condim="6" priority="1" friction="0.5 0.001 0.001" solref="-5000 -5" solimp="0.5 0.9 0.01"/>
+    </default>
+
     <asset>
         <mesh name="trunk" file="trunk.stl" />
         <mesh name="hip" file="hip.stl" />
@@ -19,6 +23,7 @@
     <worldbody>
         <body name="trunk" pos="0 0 0.3">
             <inertial pos="0.0127283 0.00218554 0.000514891" quat="0.00186575 0.711506 0.000389649 0.702677" mass="4.714" diaginertia="0.0648213 0.0565803 0.0169323" />
+<!--            <freejoint name="floating_base" />-->
 <!--            <joint type="free" limited="false"/>-->
             <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.913725 0.913725 0.847059 1" mesh="trunk" />
             <geom size="0.1335 0.066 0.057" type="box" rgba="0.913725 0.913725 0.847059 0" />
@@ -109,11 +114,19 @@
         </body>
 
         <body name="ball" pos="3 0 0.097">
+<!--            <joint type="free"/>-->
             <inertial pos="0 0 0" mass="0.318" />
-<!--            <joint name="ball" type="free" limited="false"/>-->
             <geom name="ball_geom" type="sphere" size="0.097" material="ball" group="0" solref="-500 -0.3"/>
         </body>
     </worldbody>
+
+<!--    <worldbody>-->
+<!--        <body name="ball" pos="3 0 0.097">-->
+<!--            <freejoint name="ball" />-->
+<!--            <inertial pos="0 0 0" mass="0.318" />-->
+<!--            <geom name="ball_geom" type="sphere" size="0.097" material="ball" group="0" solref="-500 -0.3" class="bouncy"/>-->
+<!--        </body>-->
+<!--    </worldbody>-->
 
     <actuator>
         <motor name="FR_hip"    gear="1" joint="FR_hip_joint"   ctrllimited="true" ctrlrange="-33.5 33.5"/>

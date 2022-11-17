@@ -12,11 +12,11 @@ from dmcgym.env import dmc_obs2gym_obs
 
 from ..wrappers.action_filter import ActionFilterButter
 
-# NUM_CURR_OBS = 16
-NUM_CURR_OBS = 18 + 3
-local_root_obs = True
-# num_obs = 436
-num_obs = 518
+NUM_CURR_OBS = 16
+# NUM_CURR_OBS = 18 + 3
+# local_root_obs = True
+num_obs = 436
+# num_obs = 518
 NUM_MOTORS = 12
 
 PARAMS = {
@@ -33,8 +33,8 @@ PARAMS = {
 
 ARGS = {'actions_num': 12, 'input_shape': (num_obs,), 'num_seqs': 4096, 'value_size': 1, 'amp_input_shape': (245,)}
 
-# MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/gp7std3lr5e5fr033randprob9_10000.pth'
-MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/gp7std3lr5e5fr033randprob9_10000.pth'
+# MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
 
 class ResidualWrapper(gym.Wrapper):
     # class AddPreviousActions(gym.ObservationWrapper):
@@ -57,7 +57,6 @@ class ResidualWrapper(gym.Wrapper):
 
         self._pd_action_offset = np.array(
             [0.0000, 0.9000, -1.8000, 0.0000, 0.9000, -1.8000, 0.0000, 0.9000, -1.8000, 0.0000, 0.9000, -1.8000])
-        # self._pd_action_scale = np.array([0.802851, 1.0472, 2.69653] * 4)
         self._pd_action_scale = np.array(
             [1.1239, 3.1416, 1.2526, 1.1239, 3.1416, 1.2526, 1.1239, 3.1416, 1.2526, 1.1239, 3.1416, 1.2526])
         self.default_target_positions = [0.0, 0.9, -1.80, 0.0, 0.9, -1.80,
@@ -136,6 +135,7 @@ class ResidualWrapper(gym.Wrapper):
         # for _ in range(self.actions.maxlen):
         #     self.actions.append(np.zeros_like(self.action_space.low))
         obs = super().reset(*args, **kwargs)
+        # import ipdb; ipdb.set_trace()
         # obs = np.concatenate([obs, np.zeros(shape)])
         return obs
 
@@ -158,6 +158,7 @@ class ResidualWrapper(gym.Wrapper):
         # actual_action = np.clip(res_action + base_action_filtered, joint limits)
         # actual_action = np.clip(base_action_filtered, self.action_space.low, self.action_space.high)
         actual_action = base_action_filtered
+        # ls hack
         actual_action = actual_action.astype(np.float32)
         # print('before step: ', actual_action)
 
