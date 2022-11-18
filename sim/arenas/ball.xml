@@ -1,0 +1,21 @@
+<mujoco model="ball_description">
+
+    <default>
+        <geom contype="1" conaffinity="0" friction="0.6 0.3 0.3" rgba="0.5 0.6 0.7 1" margin="0.001" condim="6" solref="0.02 1" solimp="0.8 0.9 0.01" group="4"/>
+<!--        <joint damping="0.01" armature="0.01" frictionloss="0.2" solreflimit="0.01 1" solimplimit="0.9 0.99 0.01" />-->
+    </default>
+<!--    <option integrator="RK4" iterations="50" solver="PGS" timestep="0.003"/>-->
+
+    <asset>
+        <material name="ball" rgba="1 1 0 1"/>
+    </asset>
+
+    <worldbody>
+        <body name="ball" pos="3 0 0.097">
+            <inertial pos="0 0 0" mass="0.318" />
+<!--            <joint name="ball" limited="false"/>-->
+            <geom name="ball_geom" type="sphere" size="0.097" material="ball" contype="0" conaffinity="1" group="0" solref="-500 -0.3" />
+            <site name="imu" pos="0 0 0"/>
+        </body>
+    </worldbody>
+</mujoco>
