@@ -9,6 +9,7 @@ from dm_control.composer.observation import observable
 from dm_control.locomotion.walkers import base
 from dm_control.utils.transformations import quat_to_euler
 from dm_env import specs
+from sim.wrappers.residual import NUM_CURR_OBS
 
 import torch
 
@@ -36,17 +37,17 @@ class A1Observables(base.WalkerObservables):
         return ([self.joints_pos, self.joints_vel] +
                 self._collect_from_attachments('proprioception'))
 
-    @composer.observable
-    def b_robot_observation(self):
-        return observable.Generic(
-            lambda physics: self._entity.get_robot_observation(physics)
-        )
-
     # @composer.observable
-    # def curr_observation(self):
+    # def b_robot_observation(self):
     #     return observable.Generic(
-    #         lambda physics: self._entity.get_curr_observation(physics)
+    #         lambda physics: self._entity.get_robot_observation(physics)
     #     )
+
+    @composer.observable
+    def curr_observation(self):
+        return observable.Generic(
+            lambda physics: self._entity.get_curr_observation(physics)
+        )
 
     @composer.observable
     def goal_obs(self):
@@ -70,6 +71,10 @@ class A1Observables(base.WalkerObservables):
     @composer.observable
     def body_position(self):
         return observable.MJCFFeature('xpos', self._entity.root_body)
+
+    @composer.observable
+    def body_rotation(self):
+        return observable.MJCFFeature('xquat', self._entity.root_body)[[1, 2, 3, 0]]
 
 
 class A1(base.Walker):
@@ -256,24 +261,24 @@ class A1(base.Walker):
         velocimeter = physics.bind(self.mjcf_model.sensor.velocimeter)
         return velocimeter.sensordata
 
-    def get_robot_observation(self, physics):
-
-        base_quat = np.array(physics.bind(self.root_body).xquat, dtype=float, copy=True)[[1, 2, 3, 0]]
-        qpos = np.array(physics.bind(self.joints).qpos, dtype=float, copy=True)
-        # base_quat = torch.from_numpy(base_quat).unsqueeze(0)
-        # base_quat = compute_local_root_quat(base_quat)[0].numpy()
-        # import ipdb; ipdb.set_trace()
-        return np.concatenate([base_quat, qpos])
-
-    # def get_curr_observation(self, physics):
+    # def get_robot_observation(self, physics):
     #
     #     base_quat = np.array(physics.bind(self.root_body).xquat, dtype=float, copy=True)[[1, 2, 3, 0]]
     #     qpos = np.array(physics.bind(self.joints).qpos, dtype=float, copy=True)
-    #     ball_pos = self.get_ball_pos(physics)
-    #     base_quat = torch.from_numpy(base_quat).unsqueeze(0)
-    #     base_quat = compute_local_root_quat(base_quat)[0].numpy()
-    #     # print('ball_pos: ', ball_pos)
-    #     return np.concatenate([base_quat, qpos, ball_pos])
+    #     # base_quat = torch.from_numpy(base_quat).unsqueeze(0)
+    #     # base_quat = compute_local_root_quat(base_quat)[0].numpy()
+    #     # import ipdb; ipdb.set_trace()
+    #     return np.concatenate([base_quat, qpos])
+
+    def get_curr_observation(self, physics):
+
+        base_quat = np.array(physics.bind(self.root_body).xquat, dtype=float, copy=True)[[1, 2, 3, 0]]
+        qpos = np.array(physics.bind(self.joints).qpos, dtype=float, copy=True)
+        # ball_pos = self.get_ball_pos(physics)
+        # base_quat = torch.from_numpy(base_quat).unsqueeze(0)
+        # base_quat = compute_local_root_quat(base_quat)[0].numpy()
+        # print('ball_pos: ', ball_pos)
+        return np.concatenate([base_quat, qpos])
 
     # def get_ball_pos(self, physics):
     #     base_quat = np.array(physics.bind(self.root_body).xquat, dtype=float, copy=True)[[1, 2, 3, 0]]

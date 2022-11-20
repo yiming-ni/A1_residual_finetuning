@@ -3,10 +3,11 @@ from typing import Optional, Tuple
 import dm_control.utils.transformations as tr
 import numpy as np
 from dm_control import composer
+from dm_control.composer.observation import observable
 from dm_control.locomotion import arenas
 from dm_control.utils import rewards
 
-from sim.arenas import HField
+from sim.arenas import HField, BallField
 from sim.tasks.utils import _find_non_contacting_height
 
 DEFAULT_CONTROL_TIMESTEP = 0.03
@@ -37,10 +38,11 @@ class DribTest(composer.Task):
                  add_velocity_to_observations: bool = True):
 
         self.floor_friction = floor_friction
-        self._floor = HField(size=(10, 10))
+        self._floor = BallField(size=(10, 10))
         self._floor.mjcf_model.size.nconmax = 400
         self._floor.mjcf_model.size.njmax = 2000
         self._ball_frame = None
+
         # if randomize_ground:
         #     self._floor = HField(size=(10, 10))
         #     self._floor.mjcf_model.size.nconmax = 400
@@ -56,15 +58,20 @@ class DribTest(composer.Task):
 
         self._ball_frame = self._floor.attach(self._floor._ball)
         self._ball_frame.add('freejoint')
-        self._ball_frame.pos = (-2.75, 0.1, .1)
-        observables = ([self._robot.observables.a_prev_observation] +
-                       [self._robot.observables.curr_observation] +
-                       [self._robot.observables.prev_action])
+        self._ball_frame.pos = (-2.5, 0.1, .1)
+        self._add_goal_sensor(self._floor)
+        self._goal_loc = self._floor.mjcf_model.find('site', 'target_goal').pos
+        observables = (
+                [self._robot.observables.body_position] +
+                [self._robot.observables.body_rotation] +
+                [self._robot.observables.joints_pos] +
+                [self._robot.observables.prev_action])
 
         for observable in observables:
             observable.enabled = True
 
-        # import ipdb; ipdb.set_trace()
+        # import ipdb;
+        # ipdb.set_trace()
 
         if not add_velocity_to_observations:
             self._robot.observables.sensors_velocimeter.enabled = False
@@ -84,6 +91,12 @@ class DribTest(composer.Task):
         self._terminate_pitch_roll = terminate_pitch_roll
 
         self._move_speed = 0.5
+
+    def _add_goal_sensor(self, floor):
+        floor.mjcf_model.worldbody.add('site',
+                                       name="target_goal",
+                                       size=[1e-6] * 3,
+                                       pos=[40.0, 0.0, .125])
 
     def get_reward(self, physics):
         xmat = physics.bind(self._robot.root_body).xmat.reshape(3, 3)
@@ -106,13 +119,6 @@ class DribTest(composer.Task):
             self._floor.mjcf_model.visual.map.znear = 0.00025
             self._floor.mjcf_model.visual.map.zfar = 50.
 
-        # self._floor.mjcf_model.worldbody.add('geom',
-        #                                      type='sphere',
-        #                                      name='ball',
-        #                                      pos=[-2.5, .1, 0.5],
-        #                                      size=[0.9, 0.9, 0.0, 0.0])
-
-
         if self._ball_frame:
             self._floor._ball.detach()
 
@@ -125,15 +131,21 @@ class DribTest(composer.Task):
                              frictionloss="0.2",
                              solreflimit="0.01 1",
                              solimplimit="0.9 0.99 0.01")
-        # self._floor.add_free_entity(self._floor._ball)
         new_friction = (random_state.uniform(low=self.floor_friction[0] - 0.25,
                                              high=self.floor_friction[0] +
-                                             0.25), self.floor_friction[1],
+                                                  0.25), self.floor_friction[1],
                         self.floor_friction[2])
         for geom in self._floor.mjcf_model.find_all('geom'):
             geom.friction = new_friction
 
-        self._ball_frame.pos = (-2.9, 0, 0.4)
+        self._ball_frame.pos = (-2.6, 0, 0.4)
+
+        # randomize goal loc
+        self.sample_goal(random_state)
+        goal_site = self._floor.mjcf_model.find('site', 'target_goal')
+        goal_site.pos = self._goal_loc
+
+        # randomize ball loc
 
     def initialize_episode(self, physics, random_state):
         super().initialize_episode(physics, random_state)
@@ -144,6 +156,29 @@ class DribTest(composer.Task):
         _find_non_contacting_height(physics,
                                     self._robot,
                                     qpos=self._robot._INIT_QPOS)
+
+    def sample_goal(self, random_state):
+        # import ipdb; ipdb.set_trace()
+        x_pos = random_state.uniform(low=20.0, high=100.0)
+        y_pos = random_state.uniform(low=-3.0, high=3.0)
+        self._goal_loc = np.array([x_pos, y_pos, 0.], dtype=np.float32)
+
+    def sample_ball_pos(self, random_state):
+        x_pos = random_state.uniform(low=20.0, high=100.0)
+        y_pos = random_state.uniform(low=-3.0, high=3.0)
+        return np.array([x_pos, y_pos, 0.09], dtype=np.float32)
+
+    @property
+    def task_observables(self):
+        task_observables = super().task_observables
+        ball_pos = observable.MJCFFeature('xpos', self._ball_frame)
+        goal_pos = observable.Generic(lambda _: self._goal_loc)
+        # import ipdb; ipdb.set_trace()
+        task_observables['ball_loc'] = ball_pos
+        task_observables['goal_loc'] = goal_pos
+        ball_pos.enabled = True
+        goal_pos.enabled = True
+        return task_observables
 
     def before_step(self, physics, action, random_state):
         # self._robot.update_actions(physics, action, random_state)
@@ -156,6 +191,8 @@ class DribTest(composer.Task):
         return self._robot.action_spec
 
     def after_step(self, physics, random_state):
+        # import ipdb;
+        # ipdb.set_trace()
         # self._robot.update_observations(physics)
         self._failure_termination = False
 
