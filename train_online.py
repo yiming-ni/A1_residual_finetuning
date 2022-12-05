@@ -37,6 +37,7 @@ flags.DEFINE_integer('action_history', 1, 'Action history.')
 flags.DEFINE_integer('control_frequency', 20, 'Control frequency.')
 flags.DEFINE_integer('utd_ratio', 1, 'Update to data ratio.')
 flags.DEFINE_boolean('real_robot', False, 'Use real robot.')
+flags.DEFINE_boolean('just_render', False, 'Just render.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -52,11 +53,11 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     #     img = img * 255
     #     img = img.astype(np.uint8)
     #     return img
-    f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
-    # f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
+    # f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
+    f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
     acs_gt = pickle.load(f)
-    f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
-    # f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
+    # f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
+    f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
     obs_gt = pickle.load(f)
     counter = 0
     import sim
@@ -70,13 +71,9 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
             # action = env.env.env.env.env.env.get_action_from_numpy(obs_gt[counter])
             # import ipdb; ipdb.set_trace()
             action = env.env.env.env.env.env.get_action_from_numpy(observation)
+            # action = env.env.env.env.env.env.get_action(observation)
             # print('actions: ', action)
             # action = agent.eval_actions(observation)
-
-            # ground_truth_action = acs_gt[counter]
-            # ground_truth_obs = obs_gt[counter]
-            # action = acs_gt[counter]
-            # import ipdb; ipdb.set_trace()
 
             observation, _, done, _ = env.step(action)
             counter += 1
@@ -116,6 +113,31 @@ def main(_):
     #     f'videos/train_{FLAGS.action_filter_high_cut}',
     #     episode_trigger=lambda x: True)
     env.seed(FLAGS.seed)
+    if FLAGS.just_render:
+        import imageio
+        video = []
+        for ep in range(10):
+            env.reset()
+            # ball_pos = env.env.env.env.env.env.env._env.task._ball_frame.pos
+            # ball_x, ball_y, ball_z = np.around(ball_pos[0], 2), np.around(ball_pos[1], 2), np.around(ball_pos[2], 2)
+            # print(ball_pos[2])
+
+            for i in range(20):
+                video.append(env.render(mode='rgb_array'))
+                # obs, reward, next_obs, done = env.step(gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample())
+                obs, reward, next_obs, done = env.step(np.zeros(12))
+                # env.render(mode='rgb_array')
+                if done:
+                    break
+            # for _ in range(5):
+            #     video.append(np.zeros_like(video[-1]))
+                ball_pos = env.env.env.env.env.env.env._env.task._floor._ball.mjcf_model.find('body', 'ball').pos
+                ball_x, ball_y, ball_z = np.around(ball_pos[0], 2), np.around(ball_pos[1], 2), np.around(ball_pos[2], 2)
+                # print(ball_pos[2])
+            imageio.mimsave('ballvisualization'+str(ball_x) + '-' + str(ball_y) + "-" + str(ball_z) +'.gif', video)
+            # imageio.mimsave('ballvisualization' +'.gif', video)
+            video=[]
+        1/0
     # print('our reset', env.reset())
     # print('IG reset', obss_gt[0])
     if not FLAGS.real_robot:
@@ -165,8 +187,8 @@ def main(_):
             # action = env.action_space.sample()
             action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
         else:
-            # action, agent = agent.sample_actions(observation)
-            action = env.env.env.env.env.env.get_action_from_numpy(observation)
+            action, agent = agent.sample_actions(observation)
+            # action = env.env.env.env.env.env.get_action_from_numpy(observation)
         next_observation, reward, done, info = env.step(action)
 
         if not done or 'TimeLimit.truncated' in info:

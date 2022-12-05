@@ -43,13 +43,6 @@ class DribTest(composer.Task):
         self._floor.mjcf_model.size.njmax = 2000
         self._ball_frame = None
 
-        # if randomize_ground:
-        #     self._floor = HField(size=(10, 10))
-        #     self._floor.mjcf_model.size.nconmax = 400
-        #     self._floor.mjcf_model.size.njmax = 2000
-        # else:
-        #     self._floor = arenas.Floor(size=(10, 10))
-
         for geom in self._floor.mjcf_model.find_all('geom'):
             geom.friction = floor_friction
 
@@ -67,7 +60,8 @@ class DribTest(composer.Task):
                              # solimplimit="0.9 0.99 0.01"
                              )
         # import ipdb; ipdb.set_trace()
-        self._ball_frame.pos = (-2.5, 0.1, 1)
+        # self._ball_frame.pos = (-2.5, 0.1, 0.3)
+        self.ball_body = self._floor._ball.mjcf_model.find('body', 'ball')
         # self._ball_frame.pos = (-0.28089765, 2.7256093, 0.1)
         self._add_goal_sensor(self._floor)
         self._goal_loc = self._floor.mjcf_model.find('site', 'target_goal').pos
@@ -90,10 +84,10 @@ class DribTest(composer.Task):
             self._floor._top_camera.remove()
         self._robot.mjcf_model.worldbody.add('camera',
                                              name='side_camera',
-                                             pos=[0, -1, 0.5],
+                                             pos=[0, -1.0, 0.5],
                                              xyaxes=[1, 0, 0, 0, 0.342, 0.940],
                                              mode="trackcom",
-                                             fovy=60.0)
+                                             fovy=100.0)
 
         self.set_timesteps(physics_timestep=physics_timestep,
                            control_timestep=control_timestep)
@@ -105,8 +99,9 @@ class DribTest(composer.Task):
     def _add_goal_sensor(self, floor):
         floor.mjcf_model.worldbody.add('site',
                                        name="target_goal",
-                                       size=[1e-6] * 3,
-                                       pos=[-3.6, 0.0, .125])
+                                       size=[0.1] * 3,
+                                       pos=[-3.6, 0.0, .125],
+                                       group=0)
 
     def get_reward(self, physics):
         xmat = physics.bind(self._robot.root_body).xmat.reshape(3, 3)
@@ -147,9 +142,16 @@ class DribTest(composer.Task):
                         self.floor_friction[2])
         for geom in self._floor.mjcf_model.find_all('geom'):
             geom.friction = new_friction
-
+        # import ipdb; ipdb.set_trace()
         # self._ball_frame.pos = (-2.6, 0, 0.06)
+        # self._floor._ball.mjcf_model.find('body', 'ball').pos = (-0.28089765, 2.7256093, 0.5)
+        sampled_x = np.random.uniform(-2.0, 2.0)
 
+        print("Setting ball x to:", sampled_x)
+        self._floor._ball.mjcf_model.find('body', 'ball').pos = (sampled_x, 0, 1)
+
+        #
+        # self._ball_frame.pos = (-0.28089765, 2.7256093, 0.5)
         # randomize goal loc
         # self.sample_goal(random_state)
         self._goal_loc = (-0.31705597, 0.91705686, 0.125)
@@ -164,12 +166,7 @@ class DribTest(composer.Task):
 
         self._failure_termination = False
 
-        _find_non_contacting_height_with_ball(physics,
-                                              self._robot,
-                                              self._floor._ball,
-                                              self._ball_frame.pos[0],
-                                              self._ball_frame.pos[1],
-                                              qpos=self._robot._INIT_QPOS)
+        _find_non_contacting_height(physics, self._robot, qpos=self._robot._INIT_QPOS)
 
     def sample_goal(self, random_state):
         # import ipdb; ipdb.set_trace()
@@ -185,7 +182,8 @@ class DribTest(composer.Task):
     @property
     def task_observables(self):
         task_observables = super().task_observables
-        ball_pos = observable.MJCFFeature('xpos', self._ball_frame)
+        ball_pos = observable.MJCFFeature('xpos', self.ball_body)
+        # ball_pos = observable.MJCFFeature('xpos', self._floor._ball)
         goal_pos = observable.Generic(lambda _: self._goal_loc)
         # import ipdb; ipdb.set_trace()
         task_observables['ball_loc'] = ball_pos

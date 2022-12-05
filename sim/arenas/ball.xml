@@ -12,7 +12,7 @@
     </asset>
 
     <worldbody>
-        <body name="ball" pos="3 0 0.097">
+        <body name="ball" pos="0 0 0.097">
             <inertial pos="0 0 0" mass="0.318" />
 <!--            <joint name="ball" limited="false"/>-->
             <geom name="ball_geom" type="sphere" size="0.097" material="ball" group="0" />
