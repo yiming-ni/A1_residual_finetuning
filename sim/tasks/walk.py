@@ -6,8 +6,8 @@ from dm_control import composer
 from dm_control.locomotion import arenas
 from dm_control.utils import rewards
 
-from sim.arenas import HField
-from sim.tasks.utils import _find_non_contacting_height
+from sim.arenas import HField, BallField
+from sim.tasks.utils import _find_non_contacting_height, _find_non_contacting_height_with_ball
 
 DEFAULT_CONTROL_TIMESTEP = 0.03
 DEFAULT_PHYSICS_TIMESTEP = 0.001
@@ -37,7 +37,7 @@ class Walk(composer.Task):
                  add_velocity_to_observations: bool = True):
 
         self.floor_friction = floor_friction
-        # self._floor = HField(size=(10, 10))
+        # self._floor = BallField(size=(10, 10))
         # self._floor.mjcf_model.size.nconmax = 400
         # self._floor.mjcf_model.size.njmax = 2000
         # self._ball_frame = None
@@ -55,11 +55,14 @@ class Walk(composer.Task):
         self._floor.add_free_entity(self._robot)
 
         # self._ball_frame = self._floor.attach(self._floor._ball)
-        # self._ball_frame.add('freejoint')
-        # self._ball_frame.pos = (-2.75, 0.1, .1)
-        # observables = ([self._robot.observables.a_prev_observation] +
-        #                [self._robot.observables.curr_observation] +
-        #                [self._robot.observables.prev_action])
+        # self._ball_frame.add('joint',
+        #                      type='free',
+        #                      damping="0.01",
+        #                      armature="0.01",
+        #                      frictionloss="0.2",
+        #                      solreflimit="0.01 1",
+        #                      solimplimit="0.9 0.99 0.01")
+        # self._ball_frame.pos = (-2.5, 0.1, .01)
 
         observables = ([self._robot.observables.body_position] +
                        [self._robot.observables.body_rotation] +
@@ -112,18 +115,6 @@ class Walk(composer.Task):
             self._floor.mjcf_model.visual.map.znear = 0.00025
             self._floor.mjcf_model.visual.map.zfar = 50.
 
-        # self._floor.mjcf_model.worldbody.add('geom',
-        #                                      type='sphere',
-        #                                      name='ball',
-        #                                      pos=[-2.5, .1, 0.5],
-        #                                      size=[0.9, 0.9, 0.0, 0.0])
-
-        # if self._ball_frame:
-        #     self._floor._ball.detach()
-        #
-        # self._ball_frame = self._floor.attach(self._floor._ball)
-        # self._ball_frame.add('freejoint')
-        # self._floor.add_free_entity(self._floor._ball)
         new_friction = (random_state.uniform(low=self.floor_friction[0] - 0.25,
                                              high=self.floor_friction[0] +
                                                   0.25), self.floor_friction[1],
@@ -142,6 +133,12 @@ class Walk(composer.Task):
         _find_non_contacting_height(physics,
                                     self._robot,
                                     qpos=self._robot._INIT_QPOS)
+        # _find_non_contacting_height_with_ball(physics,
+        #                                       self._robot,
+        #                                       self._floor._ball,
+        #                                       self._ball_frame.pos[0],
+        #                                       self._ball_frame.pos[1],
+        #                                       qpos=self._robot._INIT_QPOS)
 
     def before_step(self, physics, action, random_state):
         # self._robot.update_actions(physics, action, random_state)

@@ -8,7 +8,7 @@ from dm_control.locomotion import arenas
 from dm_control.utils import rewards
 
 from sim.arenas import HField, BallField
-from sim.tasks.utils import _find_non_contacting_height
+from sim.tasks.utils import _find_non_contacting_height, _find_non_contacting_height_with_ball
 
 DEFAULT_CONTROL_TIMESTEP = 0.03
 DEFAULT_PHYSICS_TIMESTEP = 0.001
@@ -57,8 +57,18 @@ class DribTest(composer.Task):
         self._floor.add_free_entity(self._robot)
 
         self._ball_frame = self._floor.attach(self._floor._ball)
-        self._ball_frame.add('freejoint')
-        self._ball_frame.pos = (-2.5, 0.1, .1)
+        # self._ball_frame.add('freejoint')
+        self._ball_frame.add('joint',
+                             type='free',
+                             damping="0.01",
+                             armature="0.01",
+                             frictionloss="0.2",
+                             # solreflimit="0.01 1",
+                             # solimplimit="0.9 0.99 0.01"
+                             )
+        # import ipdb; ipdb.set_trace()
+        self._ball_frame.pos = (-2.5, 0.1, 1)
+        # self._ball_frame.pos = (-0.28089765, 2.7256093, 0.1)
         self._add_goal_sensor(self._floor)
         self._goal_loc = self._floor.mjcf_model.find('site', 'target_goal').pos
         observables = (
@@ -96,7 +106,7 @@ class DribTest(composer.Task):
         floor.mjcf_model.worldbody.add('site',
                                        name="target_goal",
                                        size=[1e-6] * 3,
-                                       pos=[40.0, 0.0, .125])
+                                       pos=[-3.6, 0.0, .125])
 
     def get_reward(self, physics):
         xmat = physics.bind(self._robot.root_body).xmat.reshape(3, 3)
@@ -119,18 +129,18 @@ class DribTest(composer.Task):
             self._floor.mjcf_model.visual.map.znear = 0.00025
             self._floor.mjcf_model.visual.map.zfar = 50.
 
-        if self._ball_frame:
-            self._floor._ball.detach()
-
-        self._ball_frame = self._floor.attach(self._floor._ball)
-        # self._ball_frame.add('freejoint')
-        self._ball_frame.add('joint',
-                             type='free',
-                             damping="0.01",
-                             armature="0.01",
-                             frictionloss="0.2",
-                             solreflimit="0.01 1",
-                             solimplimit="0.9 0.99 0.01")
+        # if self._ball_frame:
+        #     self._floor._ball.detach()
+        #
+        # self._ball_frame = self._floor.attach(self._floor._ball)
+        # # self._ball_frame.add('freejoint')
+        # self._ball_frame.add('joint',
+        #                      type='free',
+        #                      damping="0.01",
+        #                      armature="0.01",
+        #                      frictionloss="0.2",
+        #                      solreflimit="0.01 1",
+        #                      solimplimit="0.9 0.99 0.01")
         new_friction = (random_state.uniform(low=self.floor_friction[0] - 0.25,
                                              high=self.floor_friction[0] +
                                                   0.25), self.floor_friction[1],
@@ -138,10 +148,11 @@ class DribTest(composer.Task):
         for geom in self._floor.mjcf_model.find_all('geom'):
             geom.friction = new_friction
 
-        self._ball_frame.pos = (-2.6, 0, 0.4)
+        # self._ball_frame.pos = (-2.6, 0, 0.06)
 
         # randomize goal loc
-        self.sample_goal(random_state)
+        # self.sample_goal(random_state)
+        self._goal_loc = (-0.31705597, 0.91705686, 0.125)
         goal_site = self._floor.mjcf_model.find('site', 'target_goal')
         goal_site.pos = self._goal_loc
 
@@ -153,13 +164,16 @@ class DribTest(composer.Task):
 
         self._failure_termination = False
 
-        _find_non_contacting_height(physics,
-                                    self._robot,
-                                    qpos=self._robot._INIT_QPOS)
+        _find_non_contacting_height_with_ball(physics,
+                                              self._robot,
+                                              self._floor._ball,
+                                              self._ball_frame.pos[0],
+                                              self._ball_frame.pos[1],
+                                              qpos=self._robot._INIT_QPOS)
 
     def sample_goal(self, random_state):
         # import ipdb; ipdb.set_trace()
-        x_pos = random_state.uniform(low=20.0, high=100.0)
+        x_pos = random_state.uniform(low=-30.0, high=-10.0)
         y_pos = random_state.uniform(low=-3.0, high=3.0)
         self._goal_loc = np.array([x_pos, y_pos, 0.], dtype=np.float32)
 

@@ -1,6 +1,47 @@
 from dm_control.rl import control
 
 
+def _find_non_contacting_height_with_ball(physics,
+                                          walker,
+                                          ball,
+                                          ball_x,
+                                          ball_y,
+                                          x_pos=0.0,
+                                          y_pos=0.0,
+                                          qpos=None,
+                                          quat=None,
+                                          maxiter=1000):
+    z_pos = 0.0  # Start embedded in the floor.
+    z_ball = 0.0
+    num_contacts = 1
+    count = 1
+    # Move up in 1cm increments until no contacts.
+    while num_contacts > 0:
+        try:
+            with physics.reset_context():
+                if qpos is not None:
+                    physics.bind(walker._joints).qpos[:] = qpos
+                walker.set_pose(physics, [x_pos, y_pos, z_pos], quat)
+                ball.set_pose = (physics, [ball_x, ball_y, z_ball], quat)
+        except control.PhysicsError:
+            # We may encounter a PhysicsError here due to filling the contact
+            # buffer, in which case we simply increment the height and continue.
+            pass
+        num_contacts = physics.data.ncon
+        # import ipdb; ipdb.set_trace(cond=(num_contacts <= 12))
+
+        if num_contacts > 1:
+            z_pos += 0.01
+        else:
+            z_ball += 0.01
+            print('ball count: ', count)
+        count += 1
+        if count > maxiter:
+            raise ValueError(
+                'maxiter reached: possibly contacts in null pose of body.')
+    print('final ball height: ', z_ball)
+
+
 def _find_non_contacting_height(physics,
                                 walker,
                                 x_pos=0.0,
