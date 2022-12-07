@@ -1,6 +1,7 @@
 from collections import deque
 
 import gym
+import ipdb
 import numpy as np
 import torch
 # from multiprocessing import Process
@@ -16,11 +17,19 @@ from ..wrappers.action_filter import ActionFilterButter
 from sim.robots.robot_utils import compute_local_root_quat, compute_local_pos
 import gym.spaces as spaces
 
-# NUM_CURR_OBS = 16
-NUM_CURR_OBS = 18 + 3
-local_root_obs = True
-# num_obs = 436
-num_obs = 518
+is_dribble = True
+
+if is_dribble:
+    NUM_CURR_OBS = 18 + 3
+    local_root_obs = True
+    num_obs = 518
+    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+else:
+    NUM_CURR_OBS = 16
+    local_root_obs = False
+    num_obs = 436
+    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/gp7std3lr5e5fr033randprob9_10000.pth'
+
 NUM_MOTORS = 12
 
 PARAMS = {
@@ -36,9 +45,6 @@ PARAMS = {
 }
 
 ARGS = {'actions_num': 12, 'input_shape': (num_obs,), 'num_seqs': 4096, 'value_size': 1, 'amp_input_shape': (245,)}
-
-# MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/gp7std3lr5e5fr033randprob9_10000.pth'
-MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
 
 
 class ResidualWrapper(gym.Wrapper):
@@ -128,12 +134,22 @@ class ResidualWrapper(gym.Wrapper):
         self._action_filter.reset()
         self._action_filter.init_history(self._pd_action_offset)
         super().reset(*args, **kwargs)
-        # import ipdb; ipdb.set_trace()
-        # obs = self.reset_walk_obs()
-        obs = self.reset_dribble_obs()
+        obs = self.reset_obs()
         # return obs
         # add ppo output (zero) to ppo obs
-        return np.concatenate([obs, np.zeros((1, 12))], axis=1)
+        return np.concatenate([obs, np.zeros(12)])
+
+    def reset_obs(self):
+        if is_dribble:
+            return self.reset_dribble_obs()
+        else:
+            return self.reset_walk_obs()
+
+    def make_obs(self):
+        if is_dribble:
+            return self.make_dribble_obs()
+        else:
+            return self.make_walk_obs()
 
     def make_walk_obs(self):
         body_rotation = self.env.env.observation_updater.get_observation()['a1_description/body_rotation']
@@ -165,7 +181,7 @@ class ResidualWrapper(gym.Wrapper):
         # print('ball obs: ', local_ball_obs)
         body_rotation = compute_local_root_quat(body_rotation)
         curr_obs = torch.cat((body_rotation, joint_pos, local_ball_obs), dim=-1)
-        return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs, prev_actions], dim=-1).cpu().numpy(), curr_obs
+        return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs, prev_actions], dim=-1).cpu().numpy().flatten(), curr_obs
 
     def reset_walk_obs(self):
         body_rotation = self.env.env.observation_updater.get_observation()['a1_description/body_rotation']
@@ -174,7 +190,7 @@ class ResidualWrapper(gym.Wrapper):
         curr_obs = np.concatenate([body_rotation, joint_pos])
         for _ in range(self.prev_observations.maxlen):
             self.prev_observations.append(curr_obs)
-        return np.concatenate([np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions])
+        return np.concatenate([np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions]).flatten()
 
     def reset_dribble_obs(self):
         updater_obs = self.env.env.observation_updater.get_observation()
@@ -199,7 +215,7 @@ class ResidualWrapper(gym.Wrapper):
             self.prev_observations.append(curr_obs)
         prev_obs = torch.cat(list(self.prev_observations), dim=-1)
         # import ipdb; ipdb.set_trace()
-        return torch.cat([prev_obs, curr_obs, local_goal_obs, prev_actions], dim=-1).cpu().numpy()
+        return torch.cat([prev_obs, curr_obs, local_goal_obs, prev_actions], dim=-1).cpu().numpy().flatten()
 
     def unnormalize_actions(self, actions):
         return self._pd_action_offset + self._pd_action_scale * actions
@@ -209,8 +225,7 @@ class ResidualWrapper(gym.Wrapper):
 
     def step(self, action):
         # get PPO action
-        # before_step_obs, curr_obs = self.make_walk_obs()
-        before_step_obs, curr_obs = self.make_dribble_obs()
+        before_step_obs, curr_obs = self.make_obs()
         # ppo_action = action
         ppo_action = self.get_action(torch.from_numpy(before_step_obs.reshape(1, -1)).to(torch.float32))
         # self.env.task_robot.update_actions(ppo_action)
@@ -237,12 +252,12 @@ class ResidualWrapper(gym.Wrapper):
 
 
         self.prev_observations.append(curr_obs)
+        if not self.env.action_space.contains(actual_action):
+            ipdb.set_trace()
         obs, reward, done, info = self.env.step(actual_action)
-        # import ipdb; ipdb.set_trace()
-        # obs, _ = self.make_walk_obs()
-        obs, _ = self.make_dribble_obs()
-        obs = np.concatenate([obs, ppo_action.reshape(1, -1)], axis=1)
-        # done = False
+        # ipdb.set_trace()
+        obs, _ = self.make_obs()
+        obs = np.concatenate([obs.flatten(), ppo_action])
         return obs, reward, done, info
 
     def _rescale_res(self, action):
