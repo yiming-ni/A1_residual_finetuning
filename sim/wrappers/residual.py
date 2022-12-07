@@ -127,15 +127,13 @@ class ResidualWrapper(gym.Wrapper):
     def reset(self, *args, **kwargs):
         self._action_filter.reset()
         self._action_filter.init_history(self._pd_action_offset)
-        obs = super().reset(*args, **kwargs)
+        super().reset(*args, **kwargs)
         # import ipdb; ipdb.set_trace()
-        # curr_obs = self.get_curr_obs_from_raw(obs)
-        # for _ in range(15):
-        #     self.env.task_robot.update_observations(curr_obs)
-        # obs = self.env.env.observation_updater.get_observation()
-        # obs = np.concatenate([obs, np.zeros(shape)])
-        # return self.reset_walk_obs()
-        return self.reset_dribble_obs()
+        # obs = self.reset_walk_obs()
+        obs = self.reset_dribble_obs()
+        return obs
+        # add ppo output (zero) to ppo obs
+        # return np.concatenate([obs, np.zeros((12,))])
 
     def make_walk_obs(self):
         body_rotation = self.env.env.observation_updater.get_observation()['a1_description/body_rotation']
@@ -163,7 +161,7 @@ class ResidualWrapper(gym.Wrapper):
         local_goal_obs = compute_local_pos(body_pos, goal_loc, body_rotation)[:, :2]
 
         # print('body pos: ', body_pos)
-        print('ball pos: ', ball_loc)
+        # print('ball pos: ', ball_loc)
         # print('ball obs: ', local_ball_obs)
         body_rotation = compute_local_root_quat(body_rotation)
         curr_obs = torch.cat((body_rotation, joint_pos, local_ball_obs), dim=-1)
@@ -179,12 +177,13 @@ class ResidualWrapper(gym.Wrapper):
         return np.concatenate([np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions])
 
     def reset_dribble_obs(self):
-        body_rotation = self.env.env.observation_updater.get_observation()['a1_description/body_rotation']
-        body_pos = self.env.env.observation_updater.get_observation()['a1_description/body_position']
-        joint_pos = self.env.env.observation_updater.get_observation()['a1_description/joints_pos']
-        prev_actions = self.env.env.observation_updater.get_observation()['a1_description/prev_action']
-        ball_loc = self.env.env.observation_updater.get_observation()['ball_loc']
-        goal_loc = self.env.env.observation_updater.get_observation()['goal_loc']
+        updater_obs = self.env.env.observation_updater.get_observation()
+        body_rotation = updater_obs['a1_description/body_rotation']
+        body_pos = updater_obs['a1_description/body_position']
+        joint_pos = updater_obs['a1_description/joints_pos']
+        prev_actions = updater_obs['a1_description/prev_action']
+        ball_loc = updater_obs['ball_loc']
+        goal_loc = updater_obs['goal_loc']
         # import ipdb; ipdb.set_trace()
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)
@@ -201,7 +200,6 @@ class ResidualWrapper(gym.Wrapper):
         prev_obs = torch.cat(list(self.prev_observations), dim=-1)
         # import ipdb; ipdb.set_trace()
         return torch.cat([prev_obs, curr_obs, local_goal_obs, prev_actions], dim=-1).cpu().numpy()
-
 
     def unnormalize_actions(self, actions):
         return self._pd_action_offset + self._pd_action_scale * actions
@@ -222,7 +220,6 @@ class ResidualWrapper(gym.Wrapper):
         #
         # res_action = self._rescalre(action)
         # actual_action = np.clip(res_action + base_action_filtered, joint limits)
-        # actual_action = np.clip(base_action_filtered, self.action_space.low, self.action_space.high)
         actual_action = base_action_filtered
         # ls hack
         actual_action = actual_action.astype(np.float32)
@@ -232,11 +229,10 @@ class ResidualWrapper(gym.Wrapper):
         self.prev_observations.append(curr_obs)
         obs, reward, done, info = self.env.step(actual_action)
         # import ipdb; ipdb.set_trace()
-        # obs, reward, done, info = self.env.step(actual_action)
-        # obs = np.concatenate([obs, ppo_action])
-        # done=False
         # obs, _ = self.make_walk_obs()
         obs, _ = self.make_dribble_obs()
+        # obs = np.concatenate([obs, ppo_action])
+        # done = False
         return obs, reward, done, info
 
     def observation(self):
@@ -272,6 +268,5 @@ class ResidualWrapper(gym.Wrapper):
         robot_quat = compute_local_root_quat(robot_quat)
         refined_curr_obs = np.concatenate([robot_quat, curr_obs[4:], local_ball_obs])
         return refined_curr_obs
-
 
 
