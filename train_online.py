@@ -70,8 +70,8 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
             videos.append(img)
             # action = env.env.env.env.env.env.get_action_from_numpy(obs_gt[counter])
             # import ipdb; ipdb.set_trace()
-            action = env.env.env.env.env.env.get_action_from_numpy(observation)
-            # action = env.env.env.env.env.env.get_action(observation)
+            # action = env.env.env.env.env.env.get_action_from_numpy(observation)
+            action = np.zeros(12)
             # print('actions: ', action)
             # action = agent.eval_actions(observation)
 
@@ -184,11 +184,10 @@ def main(_):
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
         if i < FLAGS.start_training:
-            # action = env.action_space.sample()
-            action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
+            action = env.action_space.sample()
+            # action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
         else:
             action, agent = agent.sample_actions(observation)
-            # action = env.env.env.env.env.env.get_action_from_numpy(observation)
         next_observation, reward, done, info = env.step(action)
 
         if not done or 'TimeLimit.truncated' in info:

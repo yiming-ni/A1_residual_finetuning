@@ -61,6 +61,7 @@ class DribTest(composer.Task):
                              damping="0.01",
                              armature="0.01",
                              frictionloss="0.2",
+                             # limited='false',
                              # solreflimit="0.01 1",
                              # solimplimit="0.9 0.99 0.01"
                              )

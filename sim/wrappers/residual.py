@@ -65,7 +65,7 @@ class ResidualWrapper(gym.Wrapper):
                                                 order=self.action_filter_order, num_joints=NUM_MOTORS)
         self.init_model(MODEL_PATH)
         self.prev_observations = deque(maxlen=15)
-        self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs+NUM_MOTORS,), dtype=np.float32)
 
     def _build_net(self, config):
         net = network_builder.A2CBuilder.Network(PARAMS, **config)
@@ -131,9 +131,9 @@ class ResidualWrapper(gym.Wrapper):
         # import ipdb; ipdb.set_trace()
         # obs = self.reset_walk_obs()
         obs = self.reset_dribble_obs()
-        return obs
+        # return obs
         # add ppo output (zero) to ppo obs
-        # return np.concatenate([obs, np.zeros((12,))])
+        return np.concatenate([obs, np.zeros((1, 12))], axis=1)
 
     def make_walk_obs(self):
         body_rotation = self.env.env.observation_updater.get_observation()['a1_description/body_rotation']
@@ -209,64 +209,41 @@ class ResidualWrapper(gym.Wrapper):
 
     def step(self, action):
         # get PPO action
-        obs = self.observation()
         # before_step_obs, curr_obs = self.make_walk_obs()
         before_step_obs, curr_obs = self.make_dribble_obs()
-        # ppo_action = self.get_action(torch.from_numpy(before_step_obs.reshape(1, -1)).to(torch.float32))
-        ppo_action = action
-        self.env.task_robot.update_actions(ppo_action)  # TODO how to update action after adding residual
-        base_action = self.unnormalize_actions(ppo_action)
-        base_action_filtered = self._action_filter.filter(base_action)
-        #
-        # res_action = self._rescalre(action)
-        # actual_action = np.clip(res_action + base_action_filtered, joint limits)
-        actual_action = base_action_filtered
-        # ls hack
-        actual_action = actual_action.astype(np.float32)
-        # print('before step: ', actual_action)
+        # ppo_action = action
+        ppo_action = self.get_action(torch.from_numpy(before_step_obs.reshape(1, -1)).to(torch.float32))
+        # self.env.task_robot.update_actions(ppo_action)
+        # base_action = self.unnormalize_actions(ppo_action)
+        # base_action_filtered = self._action_filter.filter(base_action)
+        # # add residual action
+        # res_action = self._rescale_res(action)
+        # actual_action = np.clip(res_action + base_action_filtered, self.action_space.low, self.action_space.high)
 
-        # self.env.task_robot.update_observations(before_step_obs[15 * NUM_CURR_OBS:16 * NUM_CURR_OBS])
+        # # update history of normalized actions
+        # actual_action_normalized = self.normalize_actions(actual_action)
+
+
+        res_action = self._rescale_res(action)
+        actual_action_normalized = np.clip(res_action + ppo_action, -1, 1)
+        actual_action = self.unnormalize_actions(actual_action_normalized)
+        actual_action = self._action_filter.filter(actual_action)
+        # hack
+        # actual_action = base_action_filtered
+
+        actual_action = actual_action.astype(np.float32)
+        self.env.task_robot.update_actions(actual_action_normalized)
+
+
+
         self.prev_observations.append(curr_obs)
         obs, reward, done, info = self.env.step(actual_action)
         # import ipdb; ipdb.set_trace()
         # obs, _ = self.make_walk_obs()
         obs, _ = self.make_dribble_obs()
-        # obs = np.concatenate([obs, ppo_action])
+        obs = np.concatenate([obs, ppo_action.reshape(1, -1)], axis=1)
         # done = False
         return obs, reward, done, info
 
-    def observation(self):
-        """get observation from the task. This is the observation for base policy."""
-        observation = self.env.env.observation_updater.get_observation()
-        # import ipdb; ipdb.set_trace()
-        observation = dmc_obs2gym_obs(observation)
-        observation = self.env.observation(observation)
-        # print('observation: ', observation)
-        return observation
-
-    def ppo_observation(self, raw_obs):
-        raw_ball_obs = raw_obs[16*15:16*15+3]
-        raw_goal_obs = raw_obs[16*16+3:16*16+6]
-        prev_obs = raw_obs[:16*15]
-        curr_obs = raw_obs[16*15+3:16*16+3]
-        prev_acs = raw_obs[-12*15:]
-        robot_quat = curr_obs[:4]
-        robot_quat = torch.from_numpy(robot_quat).unsqueeze(0)
-        raw_ball_obs = torch.from_numpy(raw_ball_obs).unsqueeze(0)
-        raw_goal_obs = torch.from_numpy(raw_goal_obs).unsqueeze(0)
-        local_ball_obs = compute_local_pos(robot_quat, raw_ball_obs)
-        local_goal_obs = compute_local_pos(robot_quat, raw_goal_obs)
-        robot_quat = compute_local_root_quat(robot_quat)
-        refined_curr_obs = np.concatenate([robot_quat, curr_obs[4:], local_ball_obs])
-        return np.concatenate([prev_obs, refined_curr_obs, local_goal_obs, prev_acs])
-
-    def get_curr_obs_from_raw(self, obs):
-        raw_ball_obs = obs[16 * 15:16 * 15 + 3]
-        curr_obs = obs[16 * 15 + 3:16 * 16 + 3]
-        robot_quat = curr_obs[:4]
-        local_ball_obs = compute_local_pos(robot_quat, raw_ball_obs)
-        robot_quat = compute_local_root_quat(robot_quat)
-        refined_curr_obs = np.concatenate([robot_quat, curr_obs[4:], local_ball_obs])
-        return refined_curr_obs
-
-
+    def _rescale_res(self, action):
+        return action * 0.1
