@@ -21,10 +21,10 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('env_name', 'A1Run-v0', 'Environment name.')
 flags.DEFINE_string('save_dir', './tmp/', 'Tensorboard logging dir.')
 flags.DEFINE_integer('seed', 42, 'Random seed.')
-flags.DEFINE_integer('eval_episodes', 1,
+flags.DEFINE_integer('eval_episodes', 10,
                      'Number of episodes used for evaluation.')
 flags.DEFINE_integer('log_interval', 1000, 'Logging interval.')
-flags.DEFINE_integer('eval_interval', 1000, 'Eval interval.')
+flags.DEFINE_integer('eval_interval', 5000, 'Eval interval.')
 flags.DEFINE_integer('batch_size', 256, 'Mini batch size.')
 flags.DEFINE_integer('max_steps', int(1e6), 'Number of training steps.')
 flags.DEFINE_integer('start_training', int(1e4),
@@ -34,55 +34,53 @@ flags.DEFINE_boolean('wandb', True, 'Log wandb.')
 flags.DEFINE_boolean('save_video', False, 'Save videos during evaluation.')
 flags.DEFINE_float('action_filter_high_cut', None, 'Action filter high cut.')
 flags.DEFINE_integer('action_history', 1, 'Action history.')
-flags.DEFINE_integer('control_frequency', 20, 'Control frequency.')
+flags.DEFINE_integer('control_frequency', 30, 'Control frequency.')
 flags.DEFINE_integer('utd_ratio', 1, 'Update to data ratio.')
 flags.DEFINE_boolean('real_robot', False, 'Use real robot.')
 flags.DEFINE_boolean('just_render', False, 'Just render.')
+flags.DEFINE_string('load_dir', '', 'Directory of model and buffer to load from.')
+flags.DEFINE_float('residual_scale', 0.1, 'Defines the Residual Action Range.')
+flags.DEFINE_float('energy_weight', 0.01, 'Weightage for Energy Reward Term.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
     'File path to the training hyperparameter configuration.',
     lock_config=False)
 
+
 def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     videos = []
 
-    # def get_image(env):
-    #     img = env.render(mode='rgb_array')
-    #     img = img.transpose(2, 0, 1)
-    #     img = img * 255
-    #     img = img.astype(np.uint8)
-    #     return img
     # f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
-    f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
-    acs_gt = pickle.load(f)
+    # f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
+    # acs_gt = pickle.load(f)
     # f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
-    f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
-    obs_gt = pickle.load(f)
-    counter = 0
-    import sim
+    # f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
+    # obs_gt = pickle.load(f)
+    # counter = 0
 
-    for _ in range(num_episodes):
+    for ep in range(num_episodes):
         observation, done = env.reset(), False
         while not done:
             # img = get_image(env)
-            img = env.render(mode='rgb_array', width=128, height=128)
-            videos.append(img)
+            if ep == 0:
+                img = env.render(mode='rgb_array', width=128, height=128)
+                videos.append(img)
             # action = env.env.env.env.env.env.get_action_from_numpy(obs_gt[counter])
             # import ipdb; ipdb.set_trace()
             # action = env.env.env.env.env.env.get_action_from_numpy(observation)
-            action = np.zeros(12)
+            # action = np.zeros(12)
             # print('actions: ', action)
-            # action = agent.eval_actions(observation)
+            action = agent.eval_actions(observation)
 
             observation, _, done, _ = env.step(action)
-            counter += 1
+            # counter += 1
     # img = env.render(mode='rgb_array')
     # videos.append(img)
     eval_info = {
         'return': np.mean(env.return_queue),
         'length': np.mean(env.length_queue),
-        'video': wandb.Video(np.stack(videos).transpose(0,3,1,2), fps=20, format="gif")
+        'video': wandb.Video(np.stack(videos).transpose(0,3,1,2), fps=30, format="gif")
     }
     return eval_info
 
@@ -94,6 +92,7 @@ def main(_):
     # import ipdb; ipdb.set_trace()
     wandb.init(project='a1')
     wandb.config.update(FLAGS)
+    # wandb.run.name =
 
     if FLAGS.real_robot:
         from real.envs.a1_env import A1Real
@@ -102,6 +101,8 @@ def main(_):
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
             FLAGS.env_name,
+            residual_scale=FLAGS.residual_scale,
+            energy_weight=FLAGS.energy_weight,
             control_frequency=FLAGS.control_frequency,
             action_filter_high_cut=FLAGS.action_filter_high_cut,
             action_history=FLAGS.action_history)
@@ -138,11 +139,12 @@ def main(_):
             # imageio.mimsave('ballvisualization' +'.gif', video)
             video=[]
         1/0
-    # print('our reset', env.reset())
-    # print('IG reset', obss_gt[0])
+
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
+            residual_scale=FLAGS.residual_scale,
+            energy_weight=FLAGS.energy_weight,
             control_frequency=FLAGS.control_frequency,
             action_filter_high_cut=FLAGS.action_filter_high_cut,
             action_history=FLAGS.action_history)
@@ -159,12 +161,16 @@ def main(_):
     agent = SACLearner.create(FLAGS.seed, env.observation_space,
                               env.action_space, **kwargs)
 
-    chkpt_dir = 'saved/checkpoints'
+    chkpt_dir = os.path.join(FLAGS.log_dir, 'checkpoints')
     os.makedirs(chkpt_dir, exist_ok=True)
-    buffer_dir = 'saved/buffers'
+    buffer_dir = os.path.join(FLAGS.log_dir, 'buffers')
 
-    # last_checkpoint = checkpoints.latest_checkpoint(chkpt_dir)
-    last_checkpoint = None
+    if FLAGS.load_dir:
+        load_chkpt_dir = os.path.join(FLAGS.load_dir, 'checkpoints')
+        load_buffer_dir = os.path.join(FLAGS.load_dir, 'buffers')
+        last_checkpoint = checkpoints.latest_checkpoint(load_chkpt_dir)
+    else:
+        last_checkpoint = None
 
     if last_checkpoint is None:
         start_i = 0
@@ -175,11 +181,15 @@ def main(_):
         start_i = int(last_checkpoint.split('_')[-1])
 
         agent = checkpoints.restore_checkpoint(last_checkpoint, agent)
+        try:
+            with open(os.path.join(load_buffer_dir, 'buffer'), 'rb') as f:
+                replay_buffer = pickle.load(f)
+        except:
+            print("Failed to load buffer from", load_buffer_dir)
 
-        with open(os.path.join(buffer_dir, f'buffer_{start_i}'), 'rb') as f:
-            replay_buffer = pickle.load(f)
-
+    videos = []
     observation, done = env.reset(), False
+    save_training_video = True
     for i in tqdm.tqdm(range(start_i, FLAGS.max_steps),
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
@@ -189,6 +199,10 @@ def main(_):
         else:
             action, agent = agent.sample_actions(observation)
         next_observation, reward, done, info = env.step(action)
+
+        if save_training_video:
+            img = env.render(mode='rgb_array', width=128, height=128)
+            videos.append(img)
 
         if not done or 'TimeLimit.truncated' in info:
             mask = 1.0
@@ -203,6 +217,14 @@ def main(_):
                  dones=done,
                  next_observations=next_observation))
         observation = next_observation
+
+        if len(videos) > 30*20:
+            train_videos = {
+                'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=30, format="gif")
+            }
+            wandb.log({f'videos/{"video"}': train_videos['video']}, step=i)
+            videos = []
+            save_training_video = False
 
         if done:
             observation, done = env.reset(), False
@@ -219,6 +241,7 @@ def main(_):
                     wandb.log({f'training/{k}': v}, step=i)
 
         if i % FLAGS.eval_interval == 0:
+            save_training_video = True
             if not FLAGS.real_robot:
                 if FLAGS.save_video:
                     eval_info = evaluate_with_video(agent,
@@ -243,7 +266,7 @@ def main(_):
                 pass
 
             os.makedirs(buffer_dir, exist_ok=True)
-            with open(os.path.join(buffer_dir, f'buffer_{i+1}'), 'wb') as f:
+            with open(os.path.join(buffer_dir, 'buffer'), 'wb') as f:
                 pickle.dump(replay_buffer, f)
 
 

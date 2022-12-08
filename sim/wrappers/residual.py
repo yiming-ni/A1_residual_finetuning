@@ -49,12 +49,11 @@ ARGS = {'actions_num': 12, 'input_shape': (num_obs,), 'num_seqs': 4096, 'value_s
 
 class ResidualWrapper(gym.Wrapper):
     # class AddPreviousActions(gym.ObservationWrapper):
-    def __init__(self, env, action_history: int = 1, *args, **kwargs):
-        # self.actions = deque(maxlen=action_history)
+    def __init__(self, env, residual_scale, action_history: int = 15, *args, **kwargs):
         super().__init__(env, *args, **kwargs)
         # import ipdb; ipdb.set_trace()
 
-
+        self.residual_scale = residual_scale
         self._pd_action_offset = np.array(
             [0.0000, 0.9000, -1.8000, 0.0000, 0.9000, -1.8000, 0.0000, 0.9000, -1.8000, 0.0000, 0.9000, -1.8000])
         self._pd_action_scale = np.array(
@@ -70,7 +69,7 @@ class ResidualWrapper(gym.Wrapper):
         self._action_filter = ActionFilterButter(lowcut=None, highcut=[4], sampling_rate=self.policy_freq,
                                                 order=self.action_filter_order, num_joints=NUM_MOTORS)
         self.init_model(MODEL_PATH)
-        self.prev_observations = deque(maxlen=15)
+        self.prev_observations = deque(maxlen=action_history)
         self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs+NUM_MOTORS,), dtype=np.float32)
 
     def _build_net(self, config):
@@ -238,7 +237,6 @@ class ResidualWrapper(gym.Wrapper):
         # # update history of normalized actions
         # actual_action_normalized = self.normalize_actions(actual_action)
 
-
         res_action = self._rescale_res(action)
         actual_action_normalized = np.clip(res_action + ppo_action, -1, 1)
         actual_action = self.unnormalize_actions(actual_action_normalized)
@@ -261,4 +259,4 @@ class ResidualWrapper(gym.Wrapper):
         return obs, reward, done, info
 
     def _rescale_res(self, action):
-        return action * 0.1
+        return action * self.residual_scale

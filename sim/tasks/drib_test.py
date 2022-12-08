@@ -13,6 +13,8 @@ from sim.robots.robot_utils import compute_local_pos
 
 DEFAULT_CONTROL_TIMESTEP = 0.03
 DEFAULT_PHYSICS_TIMESTEP = 0.001
+ENERGY_WEIGHT = 0.0
+ENERGY_SCALE = 0.01
 
 
 def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
@@ -26,15 +28,48 @@ def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
 
     return 10 * reward  # [0, 1] => [0, 10]
 
-def get_drib_reward(robot_pos, robot_quat, ball_pos, goal_pos):
-    pass
 
+def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque, dof_vel, dt):
+    root_xy = robot_pos[:2]
+    # energy saving reward
+    energy_sum = np.sum(np.square(torque * dof_vel))
+    energy_reward = np.exp(- ENERGY_SCALE * energy_sum)
+
+    v_char = diff_root / dt
+    v_ball = diff_ball / dt
+
+    diff_cb = ball_xy - root_xy
+    dist_cb = diff_cb[0] ** 2 + diff_cb[1] ** 2
+    d_cb = diff_cb / np.sqrt(dist_cb)
+
+    diff_bg = goal_xy - ball_xy
+    dist_bg = diff_bg[0] ** 2 + diff_bg[1] ** 2
+    d_bg = diff_bg / np.sqrt(dist_bg)
+
+    ball_vel = d_bg[0] * v_ball[0] + d_bg[1] * v_ball[1]
+    actor_vel = d_cb[0] * v_char[0] + d_cb[1] * v_char[1]
+
+    ball_vel_static = rewards.tolerance(ball_vel, bounds=(0., 0.), margin=0.05, sigmoid='linear')
+    ball_vel_move = rewards.tolerance(ball_vel, bounds=(0.5, 1.), margin=0.2, sigmoid='linear')
+    actor_vel_static = rewards.tolerance(actor_vel, bounds=(0., 0.), margin=0.1, sigmoid='linear')
+    actor_vel_move = rewards.tolerance(actor_vel, bounds=(0.5, 1.), margin=1., sigmoid='linear')
+
+    ball_vel_static = np.where(dist_bg < 0.04, ball_vel_static, np.zeros_like(ball_vel_static))
+    ball_vel_move = np.where(dist_bg < 0.04, np.ones_like(ball_vel_move), ball_vel_move)
+    actor_vel_static = np.where(dist_bg < 0.04, np.ones_like(actor_vel_static),
+                                np.where(dist_cb < 0.04, actor_vel_static, np.zeros_like(actor_vel_static)))
+    actor_vel_move = np.where(dist_bg < 0.04, np.ones_like(actor_vel_move),
+                              np.where(dist_cb < 0.04, np.ones_like(actor_vel_move), actor_vel_move))
+    reward = 0.1 * actor_vel_static + 0.1 * actor_vel_move + 0.4 * ball_vel_static + 0.4 * ball_vel_move
+    total_reward = (1 - ENERGY_WEIGHT) * reward + ENERGY_WEIGHT * energy_reward
+    return total_reward
 
 
 class DribTest(composer.Task):
 
     def __init__(self,
                  robot,
+                 energy_weight,
                  terminate_pitch_roll: Optional[float] = 30,
                  physics_timestep: float = DEFAULT_PHYSICS_TIMESTEP,
                  control_timestep: float = DEFAULT_CONTROL_TIMESTEP,
@@ -42,6 +77,11 @@ class DribTest(composer.Task):
                  randomize_ground: bool = True,
                  add_velocity_to_observations: bool = True):
 
+        self.energy_weight = energy_weight
+        self.qvel = None
+        self.torque = None
+        self._prev_ball_xy = None
+        self._prev_robot_xy = np.array((0.0, 0.0))
         self.floor_friction = floor_friction
         self._floor = BallField(size=(10, 10))
         self._floor.mjcf_model.size.nconmax = 400
@@ -55,7 +95,6 @@ class DribTest(composer.Task):
         self._floor.add_free_entity(self._robot)
 
         self._ball_frame = self._floor.attach(self._floor._ball)
-        # self._ball_frame.add('freejoint')
         self._ball_frame.add('joint',
                              type='free',
                              damping="0.01",
@@ -78,9 +117,6 @@ class DribTest(composer.Task):
 
         for observable in observables:
             observable.enabled = True
-
-        # import ipdb;
-        # ipdb.set_trace()
 
         if not add_velocity_to_observations:
             self._robot.observables.sensors_velocimeter.enabled = False
@@ -110,21 +146,21 @@ class DribTest(composer.Task):
 
     def get_reward(self, physics):
         robot_pos = np.array(physics.bind(self._robot.root_body).xpos, dtype=float)
-        robot_quat = np.array(physics.bind(self._robot.root_body).xquat, dtype=float)
         ball_pos = np.array(physics.bind(self.ball_body).xpos, dtype=float)
         goal_pos = self._goal_loc
+        diff_root = robot_pos[:2] - self._prev_robot_xy
+        diff_ball = ball_pos[:2] - self._prev_ball_xy
+        self._prev_robot_xy[:] = robot_pos[:2]
+        self._prev_ball_xy[:] = ball_pos[:2]
 
-        # return get_drib_reward()
-        xmat = physics.bind(self._robot.root_body).xmat.reshape(3, 3)
-        _, pitch, _ = tr.rmat_to_euler(xmat, 'XYZ')
-        velocimeter = physics.bind(self._robot.mjcf_model.sensor.velocimeter)
-
-        gyro = physics.bind(self._robot.mjcf_model.sensor.gyro)
-
-        return get_run_reward(x_velocity=velocimeter.sensordata[0],
-                              move_speed=self._move_speed,
-                              cos_pitch=np.cos(pitch),
-                              dyaw=gyro.sensordata[-1])
+        return get_dribble_reward(robot_pos=robot_pos,
+                                  diff_root=diff_root,
+                                  ball_xy=ball_pos[:2],
+                                  diff_ball=diff_ball,
+                                  goal_xy=goal_pos[:2],
+                                  torque=self.torque,
+                                  dof_vel=self.qvel,
+                                  dt=DEFAULT_CONTROL_TIMESTEP)
 
     def initialize_episode_mjcf(self, random_state):
         super().initialize_episode_mjcf(random_state)
@@ -146,6 +182,7 @@ class DribTest(composer.Task):
         # sampled_x = np.random.uniform(-2.0, 2.0)
         # print("Setting ball x to:", sampled_x)
         self.ball_body.pos = self.sample_ball_pos(random_state)
+        self._prev_ball_xy = self.ball_body.pos[:2]
 
         # randomize goal loc
         self.sample_goal(random_state, self.ball_body.pos[0], self.ball_body.pos[1])
@@ -189,7 +226,7 @@ class DribTest(composer.Task):
         pass
 
     def before_substep(self, physics, action, random_state):
-        self._robot.apply_action(physics, action, random_state)
+        self.torque, self.qvel = self._robot.apply_action(physics, action, random_state)
 
     def action_spec(self, physics):
         return self._robot.action_spec

@@ -214,6 +214,7 @@ class A1(base.Walker):
         action = np.clip(action, minimum, maximum)
 
         physics.bind(self.actuators).ctrl = action
+        return action, qvel
 
     def _build_observables(self):
         return A1Observables(self)
