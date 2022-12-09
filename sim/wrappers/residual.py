@@ -64,7 +64,7 @@ class ResidualWrapper(gym.Wrapper):
         high = self.default_target_positions + self._pd_action_scale
         self.action_space = gym.spaces.Box(low, high)
 
-        self.policy_freq = 30
+        self.policy_freq = 33
         self.action_filter_order = 2
         self._action_filter = ActionFilterButter(lowcut=None, highcut=[4], sampling_rate=self.policy_freq,
                                                 order=self.action_filter_order, num_joints=NUM_MOTORS)
@@ -131,7 +131,8 @@ class ResidualWrapper(gym.Wrapper):
 
     def reset(self, *args, **kwargs):
         self._action_filter.reset()
-        self._action_filter.init_history(self._pd_action_offset)
+        # self._action_filter.init_history(self._pd_action_offset)
+        self._action_filter.init_history(self.env.task_robot._INIT_QPOS)
         super().reset(*args, **kwargs)
         obs = self.reset_obs()
         # return obs
@@ -237,19 +238,18 @@ class ResidualWrapper(gym.Wrapper):
         # # update history of normalized actions
         # actual_action_normalized = self.normalize_actions(actual_action)
 
-        res_action = self._rescale_res(action)
+        res_action = self._rescale_res(action) * 0
         actual_action_normalized = np.clip(res_action + ppo_action, -1, 1)
-        actual_action = self.unnormalize_actions(actual_action_normalized)
-        actual_action = self._action_filter.filter(actual_action)
+        actual_action_unfiltered = self.unnormalize_actions(actual_action_normalized)
+        actual_action = self._action_filter.filter(actual_action_unfiltered)
         # hack
         # actual_action = base_action_filtered
 
         actual_action = actual_action.astype(np.float32)
         self.env.task_robot.update_actions(actual_action_normalized)
 
-
-
         self.prev_observations.append(curr_obs)
+
         if not self.env.action_space.contains(actual_action):
             ipdb.set_trace()
         obs, reward, done, info = self.env.step(actual_action)

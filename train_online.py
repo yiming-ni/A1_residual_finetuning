@@ -19,6 +19,7 @@ from rl.wrappers import wrap_gym
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('env_name', 'A1Run-v0', 'Environment name.')
+flags.DEFINE_string('exp_group', 'default', 'Experiment group name.')
 flags.DEFINE_string('save_dir', './tmp/', 'Tensorboard logging dir.')
 flags.DEFINE_integer('seed', 42, 'Random seed.')
 flags.DEFINE_integer('eval_episodes', 10,
@@ -34,13 +35,16 @@ flags.DEFINE_boolean('wandb', True, 'Log wandb.')
 flags.DEFINE_boolean('save_video', False, 'Save videos during evaluation.')
 flags.DEFINE_float('action_filter_high_cut', None, 'Action filter high cut.')
 flags.DEFINE_integer('action_history', 1, 'Action history.')
-flags.DEFINE_integer('control_frequency', 30, 'Control frequency.')
+flags.DEFINE_integer('control_frequency', 33, 'Control frequency.')
 flags.DEFINE_integer('utd_ratio', 1, 'Update to data ratio.')
 flags.DEFINE_boolean('real_robot', False, 'Use real robot.')
 flags.DEFINE_boolean('just_render', False, 'Just render.')
 flags.DEFINE_string('load_dir', '', 'Directory of model and buffer to load from.')
-flags.DEFINE_float('residual_scale', 0.1, 'Defines the Residual Action Range.')
-flags.DEFINE_float('energy_weight', 0.01, 'Weightage for Energy Reward Term.')
+flags.DEFINE_float('residual_scale', 0.1, 'Defines the residual action range.')
+flags.DEFINE_float('energy_weight', 0.01, 'Weightage for energy reward term.')
+flags.DEFINE_string('object_type', 'sphere', 'Type of the object: sphere, box, cylinder.')
+# flags.DEFINE_float('object_size', 0.097, 'Size of the regular shaped object.')
+flags.DEFINE_list('object_size', ['0.097'], 'Size of the regular shaped object.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -75,24 +79,26 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
 
             observation, _, done, _ = env.step(action)
             # counter += 1
-    # img = env.render(mode='rgb_array')
-    # videos.append(img)
+
     eval_info = {
         'return': np.mean(env.return_queue),
         'length': np.mean(env.length_queue),
-        'video': wandb.Video(np.stack(videos).transpose(0,3,1,2), fps=30, format="gif")
+        'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=30, format="gif")
     }
     return eval_info
 
+
 def main(_):
-    # f = open('/home/yiming-ni/A1_dribbling/A1-RL-Exp-MuJoCo/A1Env/igacs2.pt', "rb")
-    # acs_gt = pickle.load(f)
-    g = open("/home/yiming-ni/A1_dribbling/A1-RL-Exp-MuJoCo/A1Env/igobs.pt", "rb")
-    obss_gt = pickle.load(g)
-    # import ipdb; ipdb.set_trace()
-    wandb.init(project='a1')
+    wandb.init(project='a1',
+               group=FLAGS.exp_group,
+               dir=os.getenv('WANDB_LOGDIR'))
+    exp_name = FLAGS.object_type + str(FLAGS.object_size) + str(FLAGS.residual_scale)
+    wandb.run.name = exp_name
+    wandb.run.save()
     wandb.config.update(FLAGS)
-    # wandb.run.name =
+
+    object_params = {'object_type': FLAGS.object_type,
+                     'object_size': FLAGS.object_size}
 
     if FLAGS.real_robot:
         from real.envs.a1_env import A1Real
@@ -101,6 +107,7 @@ def main(_):
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
             FLAGS.env_name,
+            object_params=object_params,
             residual_scale=FLAGS.residual_scale,
             energy_weight=FLAGS.energy_weight,
             control_frequency=FLAGS.control_frequency,
@@ -143,6 +150,7 @@ def main(_):
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
+            object_params=object_params,
             residual_scale=FLAGS.residual_scale,
             energy_weight=FLAGS.energy_weight,
             control_frequency=FLAGS.control_frequency,
@@ -151,19 +159,15 @@ def main(_):
 
         eval_env = wrap_gym(eval_env, rescale_actions=False)
         eval_env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=FLAGS.eval_episodes)
-        # eval_env = gym.wrappers.RecordVideo(
-        #     eval_env,
-        #     f'videos/eval_{FLAGS.action_filter_high_cut}',
-        #     episode_trigger=lambda x: True)
         eval_env.seed(FLAGS.seed + 42)
 
     kwargs = dict(FLAGS.config)
     agent = SACLearner.create(FLAGS.seed, env.observation_space,
                               env.action_space, **kwargs)
 
-    chkpt_dir = os.path.join(FLAGS.log_dir, 'checkpoints')
+    chkpt_dir = os.path.join('runs', os.path.join(FLAGS.log_dir, os.path.join(exp_name, 'checkpoints')))
     os.makedirs(chkpt_dir, exist_ok=True)
-    buffer_dir = os.path.join(FLAGS.log_dir, 'buffers')
+    buffer_dir = os.path.join('runs', os.path.join(FLAGS.log_dir, os.path.join(exp_name, 'buffers')))
 
     if FLAGS.load_dir:
         load_chkpt_dir = os.path.join(FLAGS.load_dir, 'checkpoints')
@@ -222,7 +226,7 @@ def main(_):
             train_videos = {
                 'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=30, format="gif")
             }
-            wandb.log({f'videos/{"video"}': train_videos['video']}, step=i)
+            wandb.log({f'training/{"video"}': train_videos['video']}, step=i)
             videos = []
             save_training_video = False
 

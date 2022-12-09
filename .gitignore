@@ -132,3 +132,6 @@ wandb/
 videos/
 saved/
 .idea/
+runs/
+checkpoints/
+buffers/

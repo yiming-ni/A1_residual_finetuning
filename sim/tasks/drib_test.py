@@ -1,6 +1,7 @@
 from typing import Optional, Tuple
 
 import dm_control.utils.transformations as tr
+import ipdb
 import numpy as np
 from dm_control import composer
 from dm_control.composer.observation import observable
@@ -69,6 +70,7 @@ class DribTest(composer.Task):
 
     def __init__(self,
                  robot,
+                 object_params,
                  energy_weight,
                  terminate_pitch_roll: Optional[float] = 30,
                  physics_timestep: float = DEFAULT_PHYSICS_TIMESTEP,
@@ -77,6 +79,9 @@ class DribTest(composer.Task):
                  randomize_ground: bool = True,
                  add_velocity_to_observations: bool = True):
 
+        _object_size = [float(i) for i in object_params['object_size']]
+        self._object_height = _object_size[-1]
+        _object_type = object_params['object_type']
         self.energy_weight = energy_weight
         self.qvel = None
         self.torque = None
@@ -100,12 +105,17 @@ class DribTest(composer.Task):
                              damping="0.01",
                              armature="0.01",
                              frictionloss="0.2",
+                             limited='False'
                              # limited='false',
                              # solreflimit="0.01 1",
                              # solimplimit="0.9 0.99 0.01"
                              )
         # import ipdb; ipdb.set_trace()
         self.ball_body = self._floor._ball.mjcf_model.find('body', 'ball')
+        self._floor._ball.mjcf_model.find('geom', 'ball_geom').type = _object_type
+        if _object_type == 'ball':
+            _object_size = _object_size[0]
+        self._floor._ball.mjcf_model.find('geom', 'ball_geom').size = _object_size
 
         self._add_goal_sensor(self._floor)
         self._goal_loc = self._floor.mjcf_model.find('site', 'target_goal').pos
@@ -181,7 +191,7 @@ class DribTest(composer.Task):
         # self._floor._ball.mjcf_model.find('body', 'ball').pos = (-0.28089765, 2.7256093, 0.5)
         # sampled_x = np.random.uniform(-2.0, 2.0)
         # print("Setting ball x to:", sampled_x)
-        self.ball_body.pos = self.sample_ball_pos(random_state)
+        self.ball_body.pos = self.sample_ball_pos(random_state, self._object_height)
         self._prev_ball_xy = self.ball_body.pos[:2]
 
         # randomize goal loc
@@ -197,6 +207,7 @@ class DribTest(composer.Task):
         self._failure_termination = False
 
         _find_non_contacting_height(physics, self._robot, qpos=self._robot._INIT_QPOS)
+        # _find_non_contacting_height_with_ball(physics, self._robot, self._floor._ball, self.ball_body.pos[0], self.ball_body.pos[1], qpos=self._robot._INIT_QPOS)
 
     def sample_goal(self, random_state, ball_x, ball_y):
         # import ipdb; ipdb.set_trace()
@@ -204,10 +215,10 @@ class DribTest(composer.Task):
         y_pos = random_state.uniform(low=-3.0, high=3.0) + ball_y
         self._goal_loc = np.array([x_pos, y_pos, 0.125], dtype=np.float32)
 
-    def sample_ball_pos(self, random_state):
+    def sample_ball_pos(self, random_state, h):
         x_pos = random_state.uniform(low=-5.0, high=5.0)
         y_pos = random_state.uniform(low=-5.0, high=5.0)
-        return np.array([x_pos, y_pos, 0.1], dtype=np.float32)
+        return np.array([x_pos, y_pos, h+1e-3], dtype=np.float32)
 
     @property
     def task_observables(self):
