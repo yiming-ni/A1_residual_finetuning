@@ -72,7 +72,7 @@ class DribTest(composer.Task):
                  robot,
                  object_params,
                  energy_weight,
-                 terminate_pitch_roll: Optional[float] = 30,
+                 terminate_pitch_roll: Optional[float] = 45,
                  physics_timestep: float = DEFAULT_PHYSICS_TIMESTEP,
                  control_timestep: float = DEFAULT_CONTROL_TIMESTEP,
                  floor_friction: Tuple[float] = (1, 0.005, 0.0001),
@@ -243,8 +243,6 @@ class DribTest(composer.Task):
         return self._robot.action_spec
 
     def after_step(self, physics, random_state):
-        # ipdb.set_trace()
-        # self._robot.update_observations(physics)
         self._failure_termination = False
 
         if self._terminate_pitch_roll is not None:

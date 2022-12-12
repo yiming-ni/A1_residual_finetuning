@@ -67,10 +67,10 @@ class ResidualWrapper(gym.Wrapper):
         self.policy_freq = 33
         self.action_filter_order = 2
         self._action_filter = ActionFilterButter(lowcut=None, highcut=[4], sampling_rate=self.policy_freq,
-                                                order=self.action_filter_order, num_joints=NUM_MOTORS)
+                                                 order=self.action_filter_order, num_joints=NUM_MOTORS)
         self.init_model(MODEL_PATH)
         self.prev_observations = deque(maxlen=action_history)
-        self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs+NUM_MOTORS,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs + NUM_MOTORS,), dtype=np.float32)
 
     def _build_net(self, config):
         net = network_builder.A2CBuilder.Network(PARAMS, **config)
@@ -157,7 +157,8 @@ class ResidualWrapper(gym.Wrapper):
         prev_actions = self.env.env.observation_updater.get_observation()['a1_description/prev_action']
         # import ipdb; ipdb.set_trace()
         curr_obs = np.concatenate([body_rotation, joint_pos])
-        return np.concatenate([np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions]), curr_obs
+        return np.concatenate(
+            [np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions]), curr_obs
 
     def make_dribble_obs(self):
         updater_obs = self.env.env.observation_updater.get_observation()
@@ -181,7 +182,8 @@ class ResidualWrapper(gym.Wrapper):
         # print('ball obs: ', local_ball_obs)
         body_rotation = compute_local_root_quat(body_rotation)
         curr_obs = torch.cat((body_rotation, joint_pos, local_ball_obs), dim=-1)
-        return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs, prev_actions], dim=-1).cpu().numpy().flatten(), curr_obs
+        return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs, prev_actions],
+                         dim=-1).cpu().numpy().flatten(), curr_obs
 
     def reset_walk_obs(self):
         body_rotation = self.env.env.observation_updater.get_observation()['a1_description/body_rotation']
@@ -190,7 +192,8 @@ class ResidualWrapper(gym.Wrapper):
         curr_obs = np.concatenate([body_rotation, joint_pos])
         for _ in range(self.prev_observations.maxlen):
             self.prev_observations.append(curr_obs)
-        return np.concatenate([np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions]).flatten()
+        return np.concatenate(
+            [np.array(self.prev_observations).flatten(), body_rotation, joint_pos, prev_actions]).flatten()
 
     def reset_dribble_obs(self):
         updater_obs = self.env.env.observation_updater.get_observation()
@@ -226,34 +229,28 @@ class ResidualWrapper(gym.Wrapper):
     def step(self, action):
         # get PPO action
         before_step_obs, curr_obs = self.make_obs()
-        # ppo_action = action
         ppo_action = self.get_action(torch.from_numpy(before_step_obs.reshape(1, -1)).to(torch.float32))
-        # self.env.task_robot.update_actions(ppo_action)
-        # base_action = self.unnormalize_actions(ppo_action)
-        # base_action_filtered = self._action_filter.filter(base_action)
-        # # add residual action
-        # res_action = self._rescale_res(action)
-        # actual_action = np.clip(res_action + base_action_filtered, self.action_space.low, self.action_space.high)
 
-        # # update history of normalized actions
-        # actual_action_normalized = self.normalize_actions(actual_action)
-
-        res_action = self._rescale_res(action) * 0
+        res_action = self._rescale_res(action)
         actual_action_normalized = np.clip(res_action + ppo_action, -1, 1)
         actual_action_unfiltered = self.unnormalize_actions(actual_action_normalized)
         actual_action = self._action_filter.filter(actual_action_unfiltered)
-        # hack
-        # actual_action = base_action_filtered
 
+        ######## try ########
+        # ppo_action_unnormalized = self.unnormalize_actions(ppo_action)
+        # actual_action_unnormalized = np.clip(res_action + ppo_action_unnormalized, self.action_space.low, self.action_space.high)
+        # actual_action_normalized = self.normalize_actions(actual_action_unnormalized)
+        # actual_action = self._action_filter.filter(actual_action_unnormalized)
+        ######################
+
+        actual_action = np.clip(actual_action, self.action_space.low, self.action_space.high)
         actual_action = actual_action.astype(np.float32)
         self.env.task_robot.update_actions(actual_action_normalized)
 
         self.prev_observations.append(curr_obs)
 
-        if not self.env.action_space.contains(actual_action):
-            ipdb.set_trace()
         obs, reward, done, info = self.env.step(actual_action)
-        # ipdb.set_trace()
+
         obs, _ = self.make_obs()
         obs = np.concatenate([obs.flatten(), ppo_action])
         return obs, reward, done, info

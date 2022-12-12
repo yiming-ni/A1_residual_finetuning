@@ -62,10 +62,6 @@ def make_env(task_name: str,
     else:
         raise NotImplemented
 
-    # env = composer.Environment(task, strip_singleton_obs_buffer_dim=True)
-    # env = DMCGYM(env)
-    # env = FlattenObservation(env)
-
     env = EnvironmentWrapper(task, strip_singleton_obs_buffer_dim=True)
     env = DMCGYMWrapper(env)
     env = FlattenObservation(env)
@@ -99,10 +95,10 @@ def make_mujoco_env(env_name: str,
     if action_filter_high_cut is not None:
         env = ActionFilterWrapper(env, highcut=action_filter_high_cut)
 
-    if clip_actions:
+    # if clip_actions:
         # ACTION_OFFSET = np.asarray([0.2, 0.4, 0.4] * 4)
-        ACTION_OFFSET = sim.robots.a1.A1._QPOS_OFFSET
-        INIT_QPOS = sim.robots.a1.A1._INIT_QPOS
+        # ACTION_OFFSET = sim.robots.a1.A1._QPOS_OFFSET
+        # INIT_QPOS = sim.robots.a1.A1._INIT_QPOS
         # if env.action_space.shape[0] == 12:
         #     env = ClipAction(env, INIT_QPOS - ACTION_OFFSET,
         #                      INIT_QPOS + ACTION_OFFSET)

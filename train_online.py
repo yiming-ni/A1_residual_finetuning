@@ -3,6 +3,7 @@ import os
 import pickle
 import shutil
 
+import ipdb
 import numpy as np
 import tqdm
 
@@ -43,8 +44,8 @@ flags.DEFINE_string('load_dir', '', 'Directory of model and buffer to load from.
 flags.DEFINE_float('residual_scale', 0.1, 'Defines the residual action range.')
 flags.DEFINE_float('energy_weight', 0.01, 'Weightage for energy reward term.')
 flags.DEFINE_string('object_type', 'sphere', 'Type of the object: sphere, box, cylinder.')
-# flags.DEFINE_float('object_size', 0.097, 'Size of the regular shaped object.')
 flags.DEFINE_list('object_size', ['0.097'], 'Size of the regular shaped object.')
+flags.DEFINE_boolean('sparse_reward', False, 'Whether to use sparse distance reward.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -92,7 +93,7 @@ def main(_):
     wandb.init(project='a1',
                group=FLAGS.exp_group,
                dir=os.getenv('WANDB_LOGDIR'))
-    exp_name = FLAGS.object_type + str(FLAGS.object_size) + str(FLAGS.residual_scale)
+    exp_name = FLAGS.exp_group + FLAGS.object_type + str(FLAGS.object_size[-1]) + str(FLAGS.residual_scale)
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)

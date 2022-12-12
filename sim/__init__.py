@@ -25,5 +25,5 @@ make_env.metadata = DMCGYM.metadata
 
 register(id=f"A1Run-v0",
          entry_point="sim:make_env",
-         max_episode_steps=400,
+         max_episode_steps=1000,
          kwargs=dict(task_name='run'))
