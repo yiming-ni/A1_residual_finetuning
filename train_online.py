@@ -31,6 +31,7 @@ flags.DEFINE_integer('batch_size', 256, 'Mini batch size.')
 flags.DEFINE_integer('max_steps', int(1e6), 'Number of training steps.')
 flags.DEFINE_integer('start_training', int(1e4),
                      'Number of training steps to start training.')
+flags.DEFINE_integer('ep_len', 1000, 'Episode Length.')
 flags.DEFINE_boolean('tqdm', True, 'Use tqdm progress bar.')
 flags.DEFINE_boolean('wandb', True, 'Log wandb.')
 flags.DEFINE_boolean('save_video', False, 'Save videos during evaluation.')
@@ -46,6 +47,7 @@ flags.DEFINE_float('energy_weight', 0.01, 'Weightage for energy reward term.')
 flags.DEFINE_string('object_type', 'sphere', 'Type of the object: sphere, box, cylinder.')
 flags.DEFINE_list('object_size', ['0.097'], 'Size of the regular shaped object.')
 flags.DEFINE_boolean('sparse_reward', False, 'Whether to use sparse distance reward.')
+flags.DEFINE_boolean('randomize_object', False, 'Whether to randomize the object params in each episode.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -84,7 +86,7 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     eval_info = {
         'return': np.mean(env.return_queue),
         'length': np.mean(env.length_queue),
-        'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=30, format="gif")
+        'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=33, format="gif")
     }
     return eval_info
 
@@ -93,7 +95,10 @@ def main(_):
     wandb.init(project='a1',
                group=FLAGS.exp_group,
                dir=os.getenv('WANDB_LOGDIR'))
-    exp_name = FLAGS.exp_group + FLAGS.object_type + str(FLAGS.object_size[-1]) + str(FLAGS.residual_scale)
+    if FLAGS.randomize_object:
+        exp_name = FLAGS.exp_group + '_randomize_obj' + str(FLAGS.residual_scale)
+    else:
+        exp_name = FLAGS.exp_group + FLAGS.object_type + str(FLAGS.object_size[-1]) + str(FLAGS.residual_scale)
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)
@@ -108,7 +113,9 @@ def main(_):
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
             FLAGS.env_name,
+            ep_len=FLAGS.ep_len,
             object_params=object_params,
+            randomize_object=FLAGS.randomize_object,
             residual_scale=FLAGS.residual_scale,
             energy_weight=FLAGS.energy_weight,
             control_frequency=FLAGS.control_frequency,
@@ -151,7 +158,9 @@ def main(_):
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
+            ep_len=FLAGS.ep_len,
             object_params=object_params,
+            randomize_object=FLAGS.randomize_object,
             residual_scale=FLAGS.residual_scale,
             energy_weight=FLAGS.energy_weight,
             control_frequency=FLAGS.control_frequency,
@@ -225,7 +234,7 @@ def main(_):
 
         if len(videos) > 30*20:
             train_videos = {
-                'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=30, format="gif")
+                'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=33, format="gif")
             }
             wandb.log({f'training/{"video"}': train_videos['video']}, step=i)
             videos = []

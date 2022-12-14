@@ -14,8 +14,8 @@ from sim.robots.robot_utils import compute_local_pos
 
 DEFAULT_CONTROL_TIMESTEP = 0.03
 DEFAULT_PHYSICS_TIMESTEP = 0.001
-ENERGY_WEIGHT = 0.0
 ENERGY_SCALE = 0.01
+OBJECT_TYPE = ['sphere', 'box']
 
 
 def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
@@ -30,7 +30,16 @@ def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
     return 10 * reward  # [0, 1] => [0, 10]
 
 
-def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque, dof_vel, dt):
+def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w):
+    dist = (goal_xy[0] - ball_xy[0]) ** 2 + (goal_xy[1] - ball_xy[1]) ** 2
+    dist_rew = np.exp(-0.5 * dist)
+    energy_sum = np.sum(np.square(torque * dof_vel))
+    energy_reward = np.exp(- ENERGY_SCALE * energy_sum)
+    total_reward = (1 - energy_w) * dist_rew + energy_w * energy_reward
+    return total_reward
+
+
+def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque, dof_vel, dt, energy_w):
     root_xy = robot_pos[:2]
     # energy saving reward
     energy_sum = np.sum(np.square(torque * dof_vel))
@@ -62,7 +71,7 @@ def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque
     actor_vel_move = np.where(dist_bg < 0.04, np.ones_like(actor_vel_move),
                               np.where(dist_cb < 0.04, np.ones_like(actor_vel_move), actor_vel_move))
     reward = 0.1 * actor_vel_static + 0.1 * actor_vel_move + 0.4 * ball_vel_static + 0.4 * ball_vel_move
-    total_reward = (1 - ENERGY_WEIGHT) * reward + ENERGY_WEIGHT * energy_reward
+    total_reward = (1 - energy_w) * reward + energy_w * energy_reward
     return total_reward
 
 
@@ -71,6 +80,7 @@ class DribTest(composer.Task):
     def __init__(self,
                  robot,
                  object_params,
+                 randomize_object: bool,
                  energy_weight,
                  terminate_pitch_roll: Optional[float] = 45,
                  physics_timestep: float = DEFAULT_PHYSICS_TIMESTEP,
@@ -79,9 +89,7 @@ class DribTest(composer.Task):
                  randomize_ground: bool = True,
                  add_velocity_to_observations: bool = True):
 
-        _object_size = [float(i) for i in object_params['object_size']]
-        self._object_height = _object_size[-1]
-        _object_type = object_params['object_type']
+        self.randomize_object = randomize_object
         self.energy_weight = energy_weight
         self.qvel = None
         self.torque = None
@@ -112,10 +120,15 @@ class DribTest(composer.Task):
                              )
         # import ipdb; ipdb.set_trace()
         self.ball_body = self._floor._ball.mjcf_model.find('body', 'ball')
-        self._floor._ball.mjcf_model.find('geom', 'ball_geom').type = _object_type
-        if _object_type == 'ball':
-            _object_size = _object_size[0]
-        self._floor._ball.mjcf_model.find('geom', 'ball_geom').size = _object_size
+
+        if not self.randomize_object:
+            _object_size = [float(i) for i in object_params['object_size']]
+            self._object_height = _object_size[-1]
+            _object_type = object_params['object_type']
+            self._floor._ball.mjcf_model.find('geom', 'ball_geom').type = _object_type
+            if _object_type == 'ball':
+                _object_size = _object_size[0]
+            self._floor._ball.mjcf_model.find('geom', 'ball_geom').size = _object_size
 
         self._add_goal_sensor(self._floor)
         self._goal_loc = self._floor.mjcf_model.find('site', 'target_goal').pos
@@ -170,7 +183,8 @@ class DribTest(composer.Task):
                                   goal_xy=goal_pos[:2],
                                   torque=self.torque,
                                   dof_vel=self.qvel,
-                                  dt=DEFAULT_CONTROL_TIMESTEP)
+                                  dt=DEFAULT_CONTROL_TIMESTEP,
+                                  energy_w=self.energy_weight)
 
     def initialize_episode_mjcf(self, random_state):
         super().initialize_episode_mjcf(random_state)
@@ -187,16 +201,23 @@ class DribTest(composer.Task):
                         self.floor_friction[2])
         for geom in self._floor.mjcf_model.find_all('geom'):
             geom.friction = new_friction
-        # import ipdb; ipdb.set_trace()
-        # self._floor._ball.mjcf_model.find('body', 'ball').pos = (-0.28089765, 2.7256093, 0.5)
-        # sampled_x = np.random.uniform(-2.0, 2.0)
-        # print("Setting ball x to:", sampled_x)
+
+        if self.randomize_object:
+            _object_type = OBJECT_TYPE[np.random.choice([0, 1])]
+            self._floor._ball.mjcf_model.find('geom', 'ball_geom').type = _object_type
+            _object_size = np.random.choice(np.arange(0.05, 0.3, 0.05))
+            self._object_height = _object_size
+            if _object_type == 'box':
+                _object_size = [_object_size for _ in range(3)]
+            else:
+                _object_size = [_object_size]
+            self._floor._ball.mjcf_model.find('geom', 'ball_geom').size = _object_size
+
         self.ball_body.pos = self.sample_ball_pos(random_state, self._object_height)
         self._prev_ball_xy = self.ball_body.pos[:2]
 
         # randomize goal loc
         self.sample_goal(random_state, self.ball_body.pos[0], self.ball_body.pos[1])
-        # self._goal_loc = (-0.31705597, 0.91705686, 0.125)
         goal_site = self._floor.mjcf_model.find('site', 'target_goal')
         goal_site.pos = self._goal_loc
 
