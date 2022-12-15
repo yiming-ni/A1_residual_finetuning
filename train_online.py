@@ -113,6 +113,7 @@ def main(_):
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
             FLAGS.env_name,
+            sparse_reward=FLAGS.sparse_reward,
             ep_len=FLAGS.ep_len,
             object_params=object_params,
             randomize_object=FLAGS.randomize_object,
@@ -158,6 +159,7 @@ def main(_):
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
+            sparse_reward=FLAGS.sparse_reward,
             ep_len=FLAGS.ep_len,
             object_params=object_params,
             randomize_object=FLAGS.randomize_object,

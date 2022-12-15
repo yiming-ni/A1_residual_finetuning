@@ -18,18 +18,6 @@ ENERGY_SCALE = 0.01
 OBJECT_TYPE = ['sphere', 'box']
 
 
-def get_run_reward(x_velocity: float, move_speed: float, cos_pitch: float,
-                   dyaw: float):
-    reward = rewards.tolerance(cos_pitch * x_velocity,
-                               bounds=(move_speed, 2 * move_speed),
-                               margin=2 * move_speed,
-                               value_at_margin=0,
-                               sigmoid='linear')
-    reward -= 0.1 * np.abs(dyaw)
-
-    return 10 * reward  # [0, 1] => [0, 10]
-
-
 def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w):
     dist = (goal_xy[0] - ball_xy[0]) ** 2 + (goal_xy[1] - ball_xy[1]) ** 2
     dist_rew = np.exp(-0.5 * dist)
@@ -79,6 +67,7 @@ class DribTest(composer.Task):
 
     def __init__(self,
                  robot,
+                 sparse_rew: bool,
                  object_params,
                  randomize_object: bool,
                  energy_weight,
@@ -89,6 +78,7 @@ class DribTest(composer.Task):
                  randomize_ground: bool = True,
                  add_velocity_to_observations: bool = True):
 
+        self.sparse_rew = sparse_rew
         self.randomize_object = randomize_object
         self.energy_weight = energy_weight
         self.qvel = None
@@ -175,6 +165,13 @@ class DribTest(composer.Task):
         diff_ball = ball_pos[:2] - self._prev_ball_xy
         self._prev_robot_xy[:] = robot_pos[:2]
         self._prev_ball_xy[:] = ball_pos[:2]
+
+        if self.sparse_rew:
+            return get_sparse_dribble_reward(ball_xy=robot_pos[:2],
+                                             goal_xy=goal_pos[:2],
+                                             torque=self.torque,
+                                             dof_vel=self.qvel,
+                                             energy_w=self.energy_weight)
 
         return get_dribble_reward(robot_pos=robot_pos,
                                   diff_root=diff_root,

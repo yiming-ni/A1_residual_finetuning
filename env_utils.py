@@ -44,6 +44,7 @@ class ClipAction(gym.ActionWrapper):
 
 
 def make_env(task_name: str,
+             sparse_reward: bool,
              object_params: dict,
              randomize_object: bool,
              residual_scale: float,
@@ -56,6 +57,7 @@ def make_env(task_name: str,
 
     if task_name == 'A1Run-v0':
         task = DribTest(robot,
+                        sparse_rew=sparse_reward,
                         object_params=object_params,
                         randomize_object=randomize_object,
                         energy_weight=energy_weight,
@@ -76,6 +78,7 @@ make_env.metadata = DMCGYM.metadata
 
 
 def make_mujoco_env(env_name: str,
+                    sparse_reward: bool,
                     object_params: dict,
                     randomize_object: bool,
                     control_frequency: int,
@@ -86,6 +89,7 @@ def make_mujoco_env(env_name: str,
                     action_filter_high_cut: Optional[float] = -1,
                     action_history: int = 1) -> gym.Env:
     env = make_env(env_name,
+                   sparse_reward=sparse_reward,
                    object_params=object_params,
                    randomize_object=randomize_object,
                    residual_scale=residual_scale,
