@@ -167,7 +167,7 @@ class DribTest(composer.Task):
         self._prev_ball_xy[:] = ball_pos[:2]
 
         if self.sparse_rew:
-            return get_sparse_dribble_reward(ball_xy=robot_pos[:2],
+            return get_sparse_dribble_reward(ball_xy=ball_pos[:2],
                                              goal_xy=goal_pos[:2],
                                              torque=self.torque,
                                              dof_vel=self.qvel,
