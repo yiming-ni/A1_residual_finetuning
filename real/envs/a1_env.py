@@ -11,28 +11,22 @@ from real.envs import env_builder
 from real.robots import a1, a1_robot, robot_config
 from real.utilities import pose3d
 
+ENERGY_SCALE = 0.01
 
-def get_run_reward(x_velocity: float, move_speed: float,
-                   cos_pitch_cos_roll: float, terminate_pitch_roll_deg: float):
-    termination = np.cos(np.deg2rad(terminate_pitch_roll_deg))
-    upright = rewards.tolerance(cos_pitch_cos_roll,
-                                bounds=(termination, float('inf')),
-                                sigmoid='linear',
-                                margin=termination + 1,
-                                value_at_margin=0)
 
-    forward = rewards.tolerance(x_velocity,
-                                bounds=(move_speed, 2 * move_speed),
-                                margin=move_speed,
-                                value_at_margin=0,
-                                sigmoid='linear')
-
-    return upright * forward  # [0, 1] => [0, 10]
+def get_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w):
+    dist = (goal_xy[0] - ball_xy[0]) ** 2 + (goal_xy[1] - ball_xy[1]) ** 2
+    dist_rew = np.exp(-0.5 * dist)
+    energy_sum = np.sum(np.square(torque * dof_vel))
+    energy_reward = np.exp(- ENERGY_SCALE * energy_sum)
+    total_reward = (1 - energy_w) * dist_rew + energy_w * energy_reward
+    return total_reward
 
 
 class A1Real(gym.Env):
     def __init__(
             self,
+            energy_weight: float,
             zero_action: np.ndarray = np.asarray([0.05, 0.9, -1.8] * 4),
             action_offset: np.ndarray = np.asarray([0.2, 0.4, 0.4] * 4),
     ):
@@ -60,6 +54,7 @@ class A1Real(gym.Env):
                                                 float("inf"),
                                                 shape=obs.shape,
                                                 dtype=np.float32)
+        self.energy_weight = energy_weight
 
     def _reset_var(self):
         self.prev_action = np.zeros_like(self.action_space.low)
@@ -157,17 +152,23 @@ class A1Real(gym.Env):
 
         term_rad_roll = term_rad_pitch = np.deg2rad(30)
 
-        reward = rewards.tolerance(lin_vel * np.cos(pitch),
-                                   bounds=(target_vel, 2 * target_vel),
-                                   margin=2 * target_vel,
-                                   value_at_margin=0,
-                                   sigmoid='linear')
-        reward -= 0.1 * np.abs(drpy[-1])
-        reward *= max(self._foot_contacts)
-        reward *= 10.0
+        # reward = rewards.tolerance(lin_vel * np.cos(pitch),
+        #                            bounds=(target_vel, 2 * target_vel),
+        #                            margin=2 * target_vel,
+        #                            value_at_margin=0,
+        #                            sigmoid='linear')
+        # reward -= 0.1 * np.abs(drpy[-1])
+        # reward *= max(self._foot_contacts)
+        # reward *= 10.0
+
+        ball_pos = self.env._robot.GetBallPosition()
+        goal_pos = self.env._robot.GetGoalPosition()
 
         qvel = self.env._robot.GetMotorVelocities()
         torque = self.env._robot._observed_motor_torques
+
+        reward = self.get_reward()
+
         energy = (qvel * torque).sum()
 
         if abs(roll) > term_rad_roll or abs(
@@ -204,3 +205,11 @@ class A1Real(gym.Env):
         }
 
         return obs, reward, done, info
+
+    def get_reward(self, ball_pos, goal_pos, torque, qvel):
+
+        return get_dribble_reward(ball_xy=ball_pos[:2],
+                                  goal_xy=goal_pos[:2],
+                                  torque=torque,
+                                  dof_vel=qvel,
+                                  energy_w=self.energy_weight)

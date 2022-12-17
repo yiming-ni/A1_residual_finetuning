@@ -98,7 +98,7 @@ def main(_):
     if FLAGS.randomize_object:
         exp_name = FLAGS.exp_group + '_randomize_obj' + str(FLAGS.residual_scale)
     else:
-        exp_name = FLAGS.exp_group + FLAGS.object_type + str(FLAGS.object_size[-1]) + str(FLAGS.residual_scale)
+        exp_name = FLAGS.exp_group + str(FLAGS.residual_scale) + str(FLAGS.energy_weight)
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)
@@ -108,7 +108,11 @@ def main(_):
 
     if FLAGS.real_robot:
         from real.envs.a1_env import A1Real
-        env = A1Real(zero_action=np.asarray([0.05, 0.9, -1.8] * 4))
+        from sim.wrappers.residual import ResidualWrapper
+        env = A1Real(zero_action=np.asarray([0.0, 0.9, -1.8] * 4),
+                     action_offset=np.asarray([1.1239, 3.1416, 1.2526] * 4),
+                     energy_weight=FLAGS.energy_weight)
+        env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_sacle, action_history=FLAGS.action_history)
     else:
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
