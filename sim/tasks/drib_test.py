@@ -18,7 +18,7 @@ ENERGY_SCALE = 0.01
 OBJECT_TYPE = ['sphere', 'box']
 
 
-def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w):
+def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w, separate):
     dist = (goal_xy[0] - ball_xy[0]) ** 2 + (goal_xy[1] - ball_xy[1]) ** 2
     dist_rew = np.exp(-0.5 * dist)
     energy_sum = np.sum(np.square(torque * dof_vel))
@@ -26,7 +26,7 @@ def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w):
     total_reward = (1 - energy_w) * dist_rew + energy_w * energy_reward
     reward_dict = {"total_reward": total_reward, "distance_reward": dist_rew, "energy_reward": energy_reward}
 
-    return reward_dict
+    return reward_dict if separate else total_reward
 
 
 def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque, dof_vel, dt, energy_w):
@@ -69,6 +69,7 @@ class DribTest(composer.Task):
 
     def __init__(self,
                  robot,
+                 separate_log: bool,
                  sparse_rew: bool,
                  object_params,
                  randomize_object: bool,
@@ -80,6 +81,7 @@ class DribTest(composer.Task):
                  randomize_ground: bool = True,
                  add_velocity_to_observations: bool = True):
 
+        self.separate_log = separate_log
         self.sparse_rew = sparse_rew
         self.randomize_object = randomize_object
         self.energy_weight = energy_weight
@@ -173,7 +175,8 @@ class DribTest(composer.Task):
                                              goal_xy=goal_pos[:2],
                                              torque=self.torque,
                                              dof_vel=self.qvel,
-                                             energy_w=self.energy_weight)
+                                             energy_w=self.energy_weight,
+                                             separate=self.separate_log)
 
         return get_dribble_reward(robot_pos=robot_pos,
                                   diff_root=diff_root,

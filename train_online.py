@@ -16,7 +16,7 @@ from rl.agents import SACLearner
 from rl.data import ReplayBuffer
 from rl.evaluation import evaluate
 from rl.wrappers import wrap_gym
-from sim.wrappers.misc import RecordEpisodeStatisticsWrapper
+from misc import RecordEpisodeStatisticsWrapper
 
 FLAGS = flags.FLAGS
 
@@ -49,6 +49,7 @@ flags.DEFINE_string('object_type', 'sphere', 'Type of the object: sphere, box, c
 flags.DEFINE_list('object_size', ['0.097'], 'Size of the regular shaped object.')
 flags.DEFINE_boolean('sparse_reward', False, 'Whether to use sparse distance reward.')
 flags.DEFINE_boolean('randomize_object', False, 'Whether to randomize the object params in each episode.')
+flags.DEFINE_boolean('separate_log', False, 'Whether to separately log rewards and energy penalty.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -99,7 +100,7 @@ def main(_):
     if FLAGS.randomize_object:
         exp_name = FLAGS.exp_group + '_randomize_obj' + str(FLAGS.residual_scale)
     else:
-        exp_name = FLAGS.exp_group + str(FLAGS.residual_scale) + str(FLAGS.energy_weight)
+        exp_name = FLAGS.exp_group + str(FLAGS.object_size) + str(FLAGS.energy_weight)
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)
@@ -118,6 +119,7 @@ def main(_):
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
             FLAGS.env_name,
+            separate_log=FLAGS.separate_log,
             sparse_reward=FLAGS.sparse_reward,
             ep_len=FLAGS.ep_len,
             object_params=object_params,
@@ -129,8 +131,10 @@ def main(_):
             action_history=FLAGS.action_history)
 
     env = wrap_gym(env, rescale_actions=False)
-    # env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
-    env = RecordEpisodeStatisticsWrapper(env, deque_size=1)
+    if not FLAGS.separate_log:
+        env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
+    else:
+        env = RecordEpisodeStatisticsWrapper(env, deque_size=1)
 
     env.seed(FLAGS.seed)
     if FLAGS.just_render:
@@ -162,6 +166,7 @@ def main(_):
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
+            separate_log=FLAGS.separate_log,
             sparse_reward=FLAGS.sparse_reward,
             ep_len=FLAGS.ep_len,
             object_params=object_params,

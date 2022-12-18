@@ -68,9 +68,17 @@ class RecordEpisodeStatisticsWrapper(gym.wrappers.RecordEpisodeStatistics):
 
     def step(self, action):
         observations, rewards, dones, infos = self.env.step(action)
-        self.episode_returns += rewards['total_reward']
-        self.episode_dist_returns += rewards['distance_reward']
-        self.episode_en_returns += rewards['energy_reward']
+        if rewards == 0:
+            self.episode_returns += rewards
+            self.episode_dist_returns += rewards
+            self.episode_en_returns += rewards
+        else:
+            try:
+                self.episode_returns += rewards['total_reward']
+                self.episode_dist_returns += rewards['distance_reward']
+                self.episode_en_returns += rewards['energy_reward']
+            except:
+                import ipdb; ipdb.set_trace()
         self.episode_lengths += 1
         if not self.is_vector_env:
             infos = [infos]
@@ -105,7 +113,7 @@ class RecordEpisodeStatisticsWrapper(gym.wrappers.RecordEpisodeStatistics):
             infos = tuple(infos)
         return (
             observations,
-            rewards['total_reward'],
+            rewards if rewards == 0 else rewards['total_reward'],
             dones if self.is_vector_env else dones[0],
             infos if self.is_vector_env else infos[0],
         )

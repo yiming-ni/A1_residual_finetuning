@@ -7,9 +7,8 @@ from dmcgym import DMCGYM
 from gym import spaces
 from gym.wrappers import FlattenObservation
 from sim.wrappers.residual import ResidualWrapper
-from sim.wrappers.misc import EnvironmentWrapper, DMCGYMWrapper, ClipActionWrapper
+from misc import EnvironmentWrapper, DMCGYMWrapper, ClipActionWrapper
 
-import sim
 from filter import ActionFilterWrapper
 from sim.robots import A1
 from sim.tasks import Run, Walk, Dribble, DribTest
@@ -44,6 +43,7 @@ class ClipAction(gym.ActionWrapper):
 
 
 def make_env(task_name: str,
+             separate_log: bool,
              sparse_reward: bool,
              object_params: dict,
              randomize_object: bool,
@@ -57,6 +57,7 @@ def make_env(task_name: str,
 
     if task_name == 'A1Run-v0':
         task = DribTest(robot,
+                        separate_log=separate_log,
                         sparse_rew=sparse_reward,
                         object_params=object_params,
                         randomize_object=randomize_object,
@@ -78,6 +79,7 @@ make_env.metadata = DMCGYM.metadata
 
 
 def make_mujoco_env(env_name: str,
+                    separate_log: bool,
                     sparse_reward: bool,
                     object_params: dict,
                     randomize_object: bool,
@@ -89,6 +91,7 @@ def make_mujoco_env(env_name: str,
                     action_filter_high_cut: Optional[float] = -1,
                     action_history: int = 1) -> gym.Env:
     env = make_env(env_name,
+                   separate_log=separate_log,
                    sparse_reward=sparse_reward,
                    object_params=object_params,
                    randomize_object=randomize_object,
