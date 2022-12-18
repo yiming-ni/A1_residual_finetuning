@@ -1,7 +1,7 @@
 from collections import deque
 
 import gym
-import ipdb
+# import ipdb
 import numpy as np
 import torch
 # from multiprocessing import Process
@@ -11,11 +11,8 @@ from rl_games.algos_torch.running_mean_std import RunningMeanStd
 from rl_games.algos_torch.models import ModelA2CContinuousLogStd
 import copy
 
-from dmcgym.env import dmc_obs2gym_obs
-
 from ..wrappers.action_filter import ActionFilterButter
 from sim.robots.robot_utils import compute_local_root_quat, compute_local_pos
-import gym.spaces as spaces
 
 is_dribble = True
 
@@ -23,7 +20,8 @@ if is_dribble:
     NUM_CURR_OBS = 18 + 3
     local_root_obs = True
     num_obs = 518
-    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+    # MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+    MODEL_PATH = '/home/yiming-ni/A1_Dribbling/threshold05_65000.pth'
 else:
     NUM_CURR_OBS = 16
     local_root_obs = False
@@ -194,11 +192,16 @@ class ResidualWrapper(gym.Wrapper):
 
     def _get_real_obs_for_dribble(self):
         # TODO: use method _robot.get... to copy over
-        body_rotation = self.env.env._robot._base_orientation.copy()
-        body_pos = self.env.env._robot._base_position.copy()  # TODO not implemented
-        joint_pos = self.env.env._robot._motor_angles.copy()
-        ball_loc = self.env.env._robot._ball_position.copy()  # TODO not implemented
-        goal_loc = self.env.env._robot._gall_position.copy()  # TODO not implemented
+        body_rotation = self.env.env._robot.GetBaseOrientation()
+        body_pos = self.env.env._robot.GetBasePosition()  # TODO not implemented
+        joint_pos = self.env.env._robot.GetMotorAngles()
+        # ball_loc = self.env.env._robot.GetBallPosition()  # TODO not implemented
+        # goal_loc = self.env.env._robot.GetGoalPosition()  # TODO not implemented
+
+        # hack 
+        ball_loc = self.env.ball_loc
+        goal_loc = self.env.goal_loc
+
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)
         joint_pos = torch.from_numpy(joint_pos).unsqueeze(0)
@@ -213,6 +216,7 @@ class ResidualWrapper(gym.Wrapper):
     def make_dribble_obs(self):
         if self.real_robot:
             curr_obs, local_goal_obs = self._get_real_obs_for_dribble()
+            # import ipdb; ipdb.set_trace()
             return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs] + list(self.prev_actions),
                              dim=-1).cpu().numpy().flatten(), curr_obs
         else:
@@ -234,8 +238,9 @@ class ResidualWrapper(gym.Wrapper):
     def reset_dribble_obs(self):
         if self.real_robot:
             curr_obs, local_goal_obs = self._get_real_obs_for_dribble()
+            default_pos = torch.from_numpy(self._pd_action_offset).unsqueeze(0)
             for _ in range(self.prev_actions.maxlen):
-                self.prev_actions.append(self._pd_action_offset)
+                self.prev_actions.append(default_pos)
             prev_actions = torch.cat(list(self.prev_actions), dim=-1)
         else:
             curr_obs, local_goal_obs, prev_actions = self._get_sim_obs_for_dribble()
@@ -271,7 +276,7 @@ class ResidualWrapper(gym.Wrapper):
         actual_action = np.clip(actual_action, self.action_space.low, self.action_space.high)
         actual_action = actual_action.astype(np.float32)
         if self.real_robot:
-            self.prev_actions.append(actual_action_normalized)
+            self.prev_actions.append(torch.from_numpy(actual_action_normalized).unsqueeze(0))
         else:
             self.env.task_robot.update_actions(actual_action_normalized)
         self.prev_observations.append(curr_obs)

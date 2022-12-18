@@ -254,8 +254,8 @@ class Minitaur(object):
 
     def Step(self, action, control_mode=None):
         """Steps simulation."""
-        if self._enable_action_filter:
-            action = self._FilterAction(action)
+        # if self._enable_action_filter:
+        #     action = self._FilterAction(action)
         if control_mode == None:
             control_mode = self._motor_control_mode
         for i in range(self._action_repeat):

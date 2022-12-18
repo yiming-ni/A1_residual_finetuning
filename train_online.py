@@ -10,7 +10,7 @@ import tqdm
 import gym
 import wandb
 from absl import app, flags
-from flax.training import checkpoints
+# from flax.training import checkpoints
 from ml_collections import config_flags
 from rl.agents import SACLearner
 from rl.data import ReplayBuffer
@@ -112,7 +112,13 @@ def main(_):
         env = A1Real(zero_action=np.asarray([0.0, 0.9, -1.8] * 4),
                      action_offset=np.asarray([1.1239, 3.1416, 1.2526] * 4),
                      energy_weight=FLAGS.energy_weight)
-        env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_sacle, action_history=FLAGS.action_history)
+        # import ipdb; ipdb.set_trace()
+        env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
+        # import ipdb; ipdb.set_trace()
+        for ep in range(10):
+            env.reset()
+            for timestep in range(400):
+                env.step(np.zeros(12))
     else:
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
