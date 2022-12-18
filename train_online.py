@@ -16,6 +16,7 @@ from rl.agents import SACLearner
 from rl.data import ReplayBuffer
 from rl.evaluation import evaluate
 from rl.wrappers import wrap_gym
+from sim.wrappers.misc import RecordEpisodeStatisticsWrapper
 
 FLAGS = flags.FLAGS
 
@@ -128,11 +129,9 @@ def main(_):
             action_history=FLAGS.action_history)
 
     env = wrap_gym(env, rescale_actions=False)
-    env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
-    # env = gym.wrappers.RecordVideo(
-    #     env,
-    #     f'videos/train_{FLAGS.action_filter_high_cut}',
-    #     episode_trigger=lambda x: True)
+    # env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=1)
+    env = RecordEpisodeStatisticsWrapper(env, deque_size=1)
+
     env.seed(FLAGS.seed)
     if FLAGS.just_render:
         import imageio
@@ -249,7 +248,7 @@ def main(_):
         if done:
             observation, done = env.reset(), False
             for k, v in info['episode'].items():
-                decode = {'r': 'return', 'l': 'length', 't': 'time'}
+                decode = {'r': 'return', 'dr': 'distance_return', 'er': 'energy_return', 'l': 'length', 't': 'time'}
                 wandb.log({f'training/{decode[k]}': v}, step=i)
 
         if i >= FLAGS.start_training:

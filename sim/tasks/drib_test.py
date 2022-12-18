@@ -24,7 +24,9 @@ def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w):
     energy_sum = np.sum(np.square(torque * dof_vel))
     energy_reward = np.exp(- ENERGY_SCALE * energy_sum)
     total_reward = (1 - energy_w) * dist_rew + energy_w * energy_reward
-    return total_reward
+    reward_dict = {"total_reward": total_reward, "distance_reward": dist_rew, "energy_reward": energy_reward}
+
+    return reward_dict
 
 
 def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque, dof_vel, dt, energy_w):
@@ -225,17 +227,18 @@ class DribTest(composer.Task):
         self._failure_termination = False
 
         _find_non_contacting_height(physics, self._robot, qpos=self._robot._INIT_QPOS)
-        # _find_non_contacting_height_with_ball(physics, self._robot, self._floor._ball, self.ball_body.pos[0], self.ball_body.pos[1], qpos=self._robot._INIT_QPOS)
 
     def sample_goal(self, random_state, ball_x, ball_y):
         # import ipdb; ipdb.set_trace()
         x_pos = random_state.uniform(low=-3.0, high=3.0) + ball_x
         y_pos = random_state.uniform(low=-3.0, high=3.0) + ball_y
+        x_pos, y_pos = -2, 2
         self._goal_loc = np.array([x_pos, y_pos, 0.125], dtype=np.float32)
 
     def sample_ball_pos(self, random_state, h):
-        x_pos = random_state.uniform(low=-5.0, high=5.0)
-        y_pos = random_state.uniform(low=-5.0, high=5.0)
+        # x_pos = random_state.uniform(low=-5.0, high=5.0)
+        # y_pos = random_state.uniform(low=-5.0, high=5.0)
+        x_pos, y_pos = 3, -1  # hack
         return np.array([x_pos, y_pos, h+1e-3], dtype=np.float32)
 
     @property
