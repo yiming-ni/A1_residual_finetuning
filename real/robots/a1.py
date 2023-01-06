@@ -240,6 +240,8 @@ class A1(minitaur.Minitaur):
                                           upper_bound=-0.916297857297,
                                           lower_bound=-2.69653369433),
     ]
+    ZERO_ACTION=np.asarray([0.0, 0.9, -1.8] * 4)
+    ACTION_OFFSET=np.asarray([1.1239, 3.1416, 1.2526] * 4)
     INIT_RACK_POSITION = [0, 0, 1]
     INIT_POSITION = [0, 0, 0.25870023]
     INIT_ORIENTATION = (0, 0, 0, 1)
@@ -257,7 +259,7 @@ class A1(minitaur.Minitaur):
         action_repeat=10,
         self_collision_enabled=False,
         sensors=None,
-        control_latency=0.002,
+        control_latency=0.00,
         on_rack=False,
         reset_at_current_position=False,
         reset_func_name="_PybulletReset",
@@ -296,10 +298,13 @@ class A1(minitaur.Minitaur):
             HIP_D_GAIN, KNEE_D_GAIN, ABDUCTION_D_GAIN, HIP_D_GAIN, KNEE_D_GAIN,
             ABDUCTION_D_GAIN, HIP_D_GAIN, KNEE_D_GAIN
         ]
-        self._joint_angle_lower_limits = np.array(
-            [field.lower_bound for field in self.ACTION_CONFIG])
-        self._joint_angle_upper_limits = np.array(
-            [field.upper_bound for field in self.ACTION_CONFIG])
+        # self._joint_angle_lower_limits = np.array(
+        #     [field.lower_bound for field in self.ACTION_CONFIG])
+        # self._joint_angle_upper_limits = np.array(
+        #     [field.upper_bound for field in self.ACTION_CONFIG])
+
+        self._joint_angle_lower_limits = self.ZERO_ACTION - self.ACTION_OFFSET
+        self._joint_angle_upper_limits = self.ZERO_ACTION + self.ACTION_OFFSET
         if log_time_per_step:
             self._timesteps = []
         else:

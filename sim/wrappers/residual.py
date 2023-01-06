@@ -193,7 +193,7 @@ class ResidualWrapper(gym.Wrapper):
     def _get_real_obs_for_dribble(self):
         # TODO: use method _robot.get... to copy over
         body_rotation = self.env.env._robot.GetBaseOrientation()
-        body_pos = self.env.env._robot.GetBasePosition()  # TODO not implemented
+        body_pos = self.env.env._robot.GetBasePosition()
         joint_pos = self.env.env._robot.GetMotorAngles()
         # ball_loc = self.env.env._robot.GetBallPosition()  # TODO not implemented
         # goal_loc = self.env.env._robot.GetGoalPosition()  # TODO not implemented

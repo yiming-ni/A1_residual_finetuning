@@ -26,7 +26,7 @@ from real.envs.env_wrappers import (reset_task, simple_openloop,
                                     trajectory_generator_wrapper_env)
 from real.envs.sensors import (environment_sensors, robot_sensors,
                                sensor_wrappers)
-from real.robots import a1, a1_robot, robot_config
+from real.robots import a1, a1_robot, robot_config, a1_robot_770
 
 currentdir = os.path.dirname(
     os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -44,6 +44,9 @@ def build_imitation_env():
     sim_params.motor_control_mode = robot_config.MotorControlMode.POSITION
     sim_params.num_action_repeat = 33
     sim_params.enable_action_filter = False
+
+    # yn: udp frequency
+    sim_params.sim_time_step_s = 0.0005  # 2000 Hz
 
     gym_config = locomotion_gym_config.LocomotionGymConfig(
         simulation_parameters=sim_params)
@@ -86,10 +89,11 @@ def build_imitation_env():
     env = trajectory_generator_wrapper_env.TrajectoryGeneratorWrapperEnv(
         env, trajectory_generator=traj_gen)
 
-    env = imitation_wrapper_env.ImitationWrapperEnv(
-        env,
-        episode_length_start=curriculum_episode_length_start,
-        episode_length_end=curriculum_episode_length_end,
-        curriculum_steps=2000000,
-        num_parallel_envs=1)
+    # yn
+    # env = imitation_wrapper_env.ImitationWrapperEnv(
+    #     env,
+    #     episode_length_start=curriculum_episode_length_start,
+    #     episode_length_end=curriculum_episode_length_end,
+    #     curriculum_steps=2000000,
+    #     num_parallel_envs=1)
     return env
