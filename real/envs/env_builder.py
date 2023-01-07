@@ -42,11 +42,12 @@ def build_imitation_env():
     sim_params.enable_rendering = False
     sim_params.allow_knee_contact = True
     sim_params.motor_control_mode = robot_config.MotorControlMode.POSITION
-    sim_params.num_action_repeat = 33
+    sim_params.num_action_repeat = 30
     sim_params.enable_action_filter = False
 
     # yn: udp frequency
-    sim_params.sim_time_step_s = 0.0005  # 2000 Hz
+    sim_params.sim_time_step_s = 0.001  # 1000 Hz
+    sim_params.enable_action_interpolation = False
 
     gym_config = locomotion_gym_config.LocomotionGymConfig(
         simulation_parameters=sim_params)
