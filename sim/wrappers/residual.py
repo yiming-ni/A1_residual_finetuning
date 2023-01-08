@@ -23,7 +23,8 @@ if is_dribble:
     NUM_CURR_OBS = 18 + 3
     local_root_obs = True
     num_obs = 518
-    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+    # MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/addrew_006_tr07.pth'
 else:
     NUM_CURR_OBS = 16
     local_root_obs = False
