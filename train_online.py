@@ -108,14 +108,14 @@ def main(_):
 
     if FLAGS.real_robot:
         from real.envs.locomotion_gym_env_finetune import LocomotionGymEnv
-        from sim.wrappers.residual import ResidualWrapper
+        from real.envs.env_wrappers.residual import ResidualWrapper
         env = LocomotionGymEnv()
         # import ipdb; ipdb.set_trace()
         env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
         # import ipdb; ipdb.set_trace()
         for ep in range(10):
             env.reset()
-            for timestep in range(400):
+            for timestep in range(1000):
                 env.step(np.zeros(12))
     else:
         from env_utils import make_mujoco_env

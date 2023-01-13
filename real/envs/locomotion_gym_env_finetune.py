@@ -38,10 +38,15 @@ class LocomotionGymEnv(gym.Env):
     """The gym environment for the locomotion tasks."""
 
     def __init__(self,
-                 recv_IP="192.168.123.132",
-                 recv_port=6006,
-                 send_IP="192.168.123.12",
-                 send_port=6007):
+                 recv_IP='127.0.0.1',
+                 recv_port=8001,
+                 send_IP='127.0.0.1',
+                 send_port=8000
+                #  recv_IP="192.168.123.132",
+                #  recv_port=32770,
+                #  send_IP="192.168.123.12",
+                #  send_port=32769
+                 ):
 
         self.seed()
 
@@ -87,13 +92,13 @@ class LocomotionGymEnv(gym.Env):
         self.iters_so_far = 0
         self.update_iter(self.iters_so_far)
 
-        self.client = roslibpy.Ros(host='localhost', port=9090)
-        self.client.run()
+        # self.client = roslibpy.Ros(host='localhost', port=9090)
+        # self.client.run()
 
-        self.ball_listener = roslibpy.Topic(self.client, '/global_robot_pos', 'std_msgs/Float32MultiArray')
-        self.ball_listener.subscribe(self.ball_msg_callback)
-        self.goal_listener = roslibpy.Topic(self.client, '/global_ball_pos', 'std_msgs/Float32MultiArray')
-        self.goal_listener.subscribe(self.robot_pos_msg_callback)
+        # self.ball_listener = roslibpy.Topic(self.client, '/global_ball_pos', 'std_msgs/Float32MultiArray')
+        # self.ball_listener.subscribe(self.ball_msg_callback)
+        # self.goal_listener = roslibpy.Topic(self.client, '/global_robot_pos', 'std_msgs/Float32MultiArray')
+        # self.goal_listener.subscribe(self.robot_pos_msg_callback)
 
     def close(self):
         if hasattr(self, '_robot') and self._robot:
@@ -107,15 +112,8 @@ class LocomotionGymEnv(gym.Env):
         self.obs_a1_state.ball_loc = np.array(msg['data'])
 
     def robot_pos_msg_callback(self, msg):
-        self.obs_a1_state.base_pos = np.array(msg['data'])
-        # print("received msg: ", msg['data'])
-
-    def set_robot_pose(self, robot_pose):
-        self.obs_a1_state.base_pos = robot_pose
-        # print('[call back end] robot_pose: ', self.robot_pose)
-
-    def set_ball_pos(self, ball_pos):
-        self.obs_a1_state.ball_loc = ball_pos
+        self.obs_a1_state.base_pos = np.array(msg['data'][:3])
+        # print("received msg: ", msg['data'])  # size=7
 
     ##########################################
     #            Init and Reset              #
@@ -124,9 +122,9 @@ class LocomotionGymEnv(gym.Env):
     def _init_obs_a1_state(self):
         rot_quat = np.zeros((4,))
         motor_pos = np.zeros((12,))
-        ball_loc = np.zeros((3,))
-        goal_loc = np.zeros((3,))
-        base_pos = np.zeros((3,))
+        ball_loc = np.array([3., 0., 0.])
+        goal_loc = np.array([4., 0., 0.])
+        base_pos = np.array([0., 0., 0.27])
         self.obs_a1_state = A1State(ball_loc=ball_loc, goal_loc=goal_loc, rot_quat=rot_quat, base_pos=base_pos,
                                     motor_pos=motor_pos)
         return
@@ -190,16 +188,15 @@ class LocomotionGymEnv(gym.Env):
             previous_time = current_time
 
         self._update_env(step=True)
-        reward, reward_dict = self.get_reward(self.obs_a1_state.ball_loc, self.obs_a1_state.goal_loc)
+        reward = self.get_reward(self.obs_a1_state.ball_loc, self.obs_a1_state.goal_loc)
         done = self._termination()
-        self.info['metrics'] = reward_dict
         self.info['terminated'] = done
         self.info['max_torque'] = 0.0
         return reward, done, self.info
 
     def process_recv_package(self, obs):
-        self.obs_a1_state.motor_pos = obs[7:19]
-        self.obs_a1_state.rot_quat = np.array([obs[0], obs[1], obs[2], obs[3]])
+        self.obs_a1_state.motor_pos = np.array(obs[7:19])
+        self.obs_a1_state.rot_quat = np.array([obs[1], obs[2], obs[3], obs[0]])
         return
 
     def _update_env(self, step=True):

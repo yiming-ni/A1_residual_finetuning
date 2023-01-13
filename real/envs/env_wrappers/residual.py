@@ -4,6 +4,7 @@ import gym
 # import ipdb
 import numpy as np
 import torch
+import pickle
 # from multiprocessing import Process
 from rl_games.algos_torch import network_builder
 from rl_games.algos_torch import torch_ext
@@ -46,8 +47,8 @@ class ResidualWrapper(gym.Wrapper):
         self.residual_scale = residual_scale
         self._pd_action_scale = np.array(
             [1.1239, 3.1416, 1.2526, 1.1239, 3.1416, 1.2526, 1.1239, 3.1416, 1.2526, 1.1239, 3.1416, 1.2526])
-        self.default_target_positions = [0.0, 0.9, -1.80, 0.0, 0.9, -1.80,
-                                         0.0, 0.90, -1.80, 0.0, 0.9, -1.80]
+        self.default_target_positions = np.array([0.0, 0.9, -1.80, 0.0, 0.9, -1.80,
+                                         0.0, 0.90, -1.80, 0.0, 0.9, -1.80])
         low = self.default_target_positions - self._pd_action_scale
         high = self.default_target_positions + self._pd_action_scale
         self.action_space = gym.spaces.Box(low, high)
@@ -61,6 +62,11 @@ class ResidualWrapper(gym.Wrapper):
         self.prev_actions = deque(maxlen=action_history)
         self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs + NUM_MOTORS,), dtype=np.float32)
         self.real_robot = real_robot
+
+        # hack
+        # self.m = 0
+        # f = open('/home/yiming-ni/A1_Dribbling/A1-RL-Exp-MuJoCo/A1Env/igobs.pt', 'rb')
+        # self.acs_gt = pickle.load(f)
 
     def _build_net(self, config):
         net = network_builder.A2CBuilder.Network(PARAMS, **config)
@@ -121,11 +127,11 @@ class ResidualWrapper(gym.Wrapper):
         # add ppo output (zero) to ppo obs
         return np.concatenate([self.obs, np.zeros(12)])
 
-    def make_obs(self):
+    def _get_real_obs(self):
         body_rotation = self.env.obs_a1_state.rot_quat
         body_pos = self.env.obs_a1_state.base_pos
         joint_pos = self.env.obs_a1_state.motor_pos
-        # ball_loc = self.env.obs_a1_state.ball_loc  # TODO not implemented
+        ball_loc = self.env.obs_a1_state.ball_loc  # TODO not implemented
         # goal_loc = self.env.obs_a1_state.goal_loc  # TODO not implemented
 
         # hack
@@ -141,13 +147,17 @@ class ResidualWrapper(gym.Wrapper):
         local_goal_obs = compute_local_pos(body_pos, goal_loc, body_rotation)[:, :2]
         body_rotation = compute_local_root_quat(body_rotation)
         curr_obs = torch.cat((body_rotation, joint_pos, local_ball_obs), dim=-1)
+        return curr_obs, local_goal_obs
+
+    def make_obs(self):
+        curr_obs, local_goal_obs = self._get_real_obs()
         # import ipdb; ipdb.set_trace()
         return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs] + list(self.prev_actions),
                          dim=-1).cpu().numpy().flatten(), curr_obs
 
     def reset_obs(self):
-        curr_obs, local_goal_obs = self._get_real_obs_for_dribble()
-        default_pos = torch.from_numpy(self.default_target_positions).unsqueeze(0)
+        curr_obs, local_goal_obs = self._get_real_obs()
+        default_pos = torch.from_numpy(np.zeros(12)).unsqueeze(0)
         for _ in range(self.prev_actions.maxlen):
             self.prev_actions.append(default_pos)
         prev_actions = torch.cat(list(self.prev_actions), dim=-1)
@@ -168,10 +178,13 @@ class ResidualWrapper(gym.Wrapper):
         # get PPO action
         ppo_action = self.get_action(torch.from_numpy(self.obs.reshape(1, -1)).to(torch.float32))
 
+        self.m += 1
+
         res_action = self._rescale_res(action)
         actual_action_normalized = np.clip(res_action + ppo_action, -1, 1)
         actual_action_unfiltered = self.unnormalize_actions(actual_action_normalized)
         actual_action = self._action_filter.filter(actual_action_unfiltered)
+        # print('actual_action: ', actual_action)
 
         ######## try ########
         # ppo_action_unnormalized = self.unnormalize_actions(ppo_action)

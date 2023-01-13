@@ -3,7 +3,7 @@ import numpy as np
 import socket
 
 
-class UDP_for_net:
+class UDP:
     def __init__(self,
                  recv_IP='127.0.0.1',
                  recv_port=8000,
@@ -29,49 +29,54 @@ class UDP_for_net:
     def send_pack(self, message):
         # print("Sending")
         self.sender_socket.sendto(message, self.sender_addr)
-        self.s.sendto(message, ('172.17.0.2', 32768))
+        # self.s.sendto(message, ('172.17.0.2', 32768))
 
     def receive_wait(self):
         data, _ = self.receiver_socket.recvfrom(512)  # current buffer size is 1024 bytes
         return data  # return raw msg
 
 
-class A1Interface():
+class A1Spoofer():
     def __init__(self,
-                 recv_IP="192.168.123.132",
-                 recv_port=32770,
-                 send_IP="192.168.123.12",
-                 send_port=32769) -> None:
-        self.udp = UDP_for_net(recv_IP, recv_port, send_IP, send_port)
-        self._last_obs = np.concatenate([[1], np.zeros(3), np.zeros(3), np.zeros(12)], axis=-1)
+                 recv_IP="127.0.0.1", #"192.168.123.132",
+                 recv_port=8001,
+                 send_IP="127.0.0.1", #"192.168.123.12",
+                 send_port=8000) -> None:
+        self.udp = UDP(recv_IP, recv_port, send_IP, send_port)
+        self._last_action = np.zeros((12,)) #np.concatenate([[1], np.zeros(3), np.zeros(3), np.zeros(12)], axis=-1)
         self._udp_init_done = False
 
-    def send_command(self, action):
+    def send_obs(self, obs):
         if self._udp_init_done is False:
-            action = np.ones(12) * -10
-        # print("action_raw",action)
-        # print("already connected? ",self._udp_init_done)
-        action = np.round(action, 5)  # 3
-        action = list(map(lambda x: str(x), list(action)))
-        action += " "
-        msg = " ".join(action).encode('utf-8')
+            obs = np.ones(30) * -10
+        obs = np.round(obs, 5)  # 3
+        obs = list(map(lambda x: str(x), list(obs)))
+        obs += " "
+        msg = " ".join(obs).encode('utf-8')
         self.udp.send_pack(msg)
 
-    def receive_observation(self):  # receive from gazebo and process it to array
+    def receive_action(self):  # receive from gazebo and process it to array
         while 1:
             try:
                 receive = self.udp.receive_wait()
                 self._udp_init_done = True
                 data = receive.split()
                 data = list(map(lambda x: float(x), data))
-                # print("Received data", data)
+                print("Received data", data)
                 # print("thihg: ", data[8])
-                self._last_obs = data
+                self._last_action = data
                 return data
-            except KeyboardInterrupt:
-                print("Manually Terminated.")
             except:
-                print("[Error] No observation.")
-                return self._last_obs            
+                print("[ERROR]: Received No Data.")
+                return self._last_action
 
             # rpy drpy mpos 0/1
+
+
+if __name__ == '__main__':
+    a1_spoofer = A1Spoofer()
+    obs_spoofer = np.zeros((30,))
+    while True:
+        a1_spoofer.send_obs(obs_spoofer)
+        a1_spoofer.receive_action()
+        time.sleep(0.00005)
