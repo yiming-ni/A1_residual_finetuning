@@ -107,11 +107,9 @@ def main(_):
                      'object_size': FLAGS.object_size}
 
     if FLAGS.real_robot:
-        from real.envs.a1_env import A1Real
+        from real.envs.locomotion_gym_env_finetune import LocomotionGymEnv
         from sim.wrappers.residual import ResidualWrapper
-        env = A1Real(zero_action=np.asarray([0.0, 0.9, -1.8] * 4),
-                     action_offset=np.asarray([1.1239, 3.1416, 1.2526] * 4),
-                     energy_weight=FLAGS.energy_weight)
+        env = LocomotionGymEnv()
         # import ipdb; ipdb.set_trace()
         env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
         # import ipdb; ipdb.set_trace()
@@ -220,8 +218,8 @@ def main(_):
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
         if i < FLAGS.start_training:
-            action = env.action_space.sample()
-            # action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
+            # action = env.action_space.sample()
+            action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
         else:
             action, agent = agent.sample_actions(observation)
         next_observation, reward, done, info = env.step(action)
