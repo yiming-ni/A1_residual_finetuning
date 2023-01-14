@@ -38,14 +38,14 @@ class LocomotionGymEnv(gym.Env):
     """The gym environment for the locomotion tasks."""
 
     def __init__(self,
-                 recv_IP='127.0.0.1',
-                 recv_port=8001,
-                 send_IP='127.0.0.1',
-                 send_port=8000
-                #  recv_IP="192.168.123.132",
-                #  recv_port=32770,
-                #  send_IP="192.168.123.12",
-                #  send_port=32769
+                #  recv_IP='127.0.0.1',
+                #  recv_port=8001,
+                #  send_IP='127.0.0.1',
+                #  send_port=8000
+                 recv_IP="192.168.123.132",
+                 recv_port=32770,
+                 send_IP="192.168.123.12",
+                 send_port=32769
                  ):
 
         self.seed()

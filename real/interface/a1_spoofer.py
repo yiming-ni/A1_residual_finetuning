@@ -39,9 +39,9 @@ class UDP:
 class A1Spoofer():
     def __init__(self,
                  recv_IP="127.0.0.1", #"192.168.123.132",
-                 recv_port=8001,
+                 recv_port=8000,
                  send_IP="127.0.0.1", #"192.168.123.12",
-                 send_port=8000) -> None:
+                 send_port=8001) -> None:
         self.udp = UDP(recv_IP, recv_port, send_IP, send_port)
         self._last_action = np.zeros((12,)) #np.concatenate([[1], np.zeros(3), np.zeros(3), np.zeros(12)], axis=-1)
         self._udp_init_done = False

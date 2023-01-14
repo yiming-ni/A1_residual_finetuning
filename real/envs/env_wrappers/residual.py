@@ -135,8 +135,8 @@ class ResidualWrapper(gym.Wrapper):
         # goal_loc = self.env.obs_a1_state.goal_loc  # TODO not implemented
 
         # hack
-        ball_loc = np.array([2, 1, 0])
-        goal_loc = np.array([4, 0, 0])
+        ball_loc = np.array([2, 0, 0.1])
+        goal_loc = np.array([3, 0, 0])
 
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)
@@ -177,8 +177,6 @@ class ResidualWrapper(gym.Wrapper):
     def step(self, action):
         # get PPO action
         ppo_action = self.get_action(torch.from_numpy(self.obs.reshape(1, -1)).to(torch.float32))
-
-        self.m += 1
 
         res_action = self._rescale_res(action)
         actual_action_normalized = np.clip(res_action + ppo_action, -1, 1)
