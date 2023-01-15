@@ -10,7 +10,7 @@ import tqdm
 import gym
 import wandb
 from absl import app, flags
-# from flax.training import checkpoints
+from flax.training import checkpoints
 from ml_collections import config_flags
 from rl.agents import SACLearner
 from rl.data import ReplayBuffer
@@ -113,10 +113,10 @@ def main(_):
         # import ipdb; ipdb.set_trace()
         env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
         # import ipdb; ipdb.set_trace()
-        for ep in range(10):
-            env.reset()
-            for timestep in range(1000):
-                env.step(np.zeros(12))
+        # for ep in range(10):
+        #     env.reset()
+        #     for timestep in range(1000):
+        #         env.step(np.zeros(12))
     else:
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
@@ -213,7 +213,9 @@ def main(_):
 
     videos = []
     observation, done = env.reset(), False
-    save_training_video = True
+    save_training_video = False
+    if not FLAGS.real_robot:
+        save_training_video = True
     for i in tqdm.tqdm(range(start_i, FLAGS.max_steps),
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
@@ -265,8 +267,8 @@ def main(_):
                     wandb.log({f'training/{k}': v}, step=i)
 
         if i % FLAGS.eval_interval == 0:
-            save_training_video = True
             if not FLAGS.real_robot:
+                save_training_video = True
                 if FLAGS.save_video:
                     eval_info = evaluate_with_video(agent,
                                          eval_env,
