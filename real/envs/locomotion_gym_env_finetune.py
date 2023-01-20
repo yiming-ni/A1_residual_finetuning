@@ -206,6 +206,7 @@ class LocomotionGymEnv(gym.Env):
             self.cycle_timestep += 1
 
     def _termination(self):
+
         return False
 
     ##########################################

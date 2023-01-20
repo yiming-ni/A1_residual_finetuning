@@ -135,8 +135,8 @@ class ResidualWrapper(gym.Wrapper):
         # goal_loc = self.env.obs_a1_state.goal_loc  # TODO not implemented
 
         # hack
-        ball_loc = np.array([2, 0, 0.1])
-        goal_loc = np.array([3, 0, 0])
+        ball_loc = np.array([0.6, 0, 0.1])
+        goal_loc = np.array([1.2, 0, 0])
 
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)

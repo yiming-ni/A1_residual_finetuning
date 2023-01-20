@@ -66,6 +66,9 @@ class A1Spoofer():
                 # print("thihg: ", data[8])
                 self._last_action = data
                 return data
+            except KeyboardInterrupt:
+                print("Manually Terminated.")
+                break
             except:
                 print("[ERROR]: Received No Data.")
                 return self._last_action

@@ -3,9 +3,9 @@ import os
 import pickle
 import shutil
 
-import ipdb
 import numpy as np
 import tqdm
+import time
 
 import gym
 import wandb
@@ -260,7 +260,10 @@ def main(_):
 
         if i >= FLAGS.start_training:
             batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
+            tik = time.time()
             agent, update_info = agent.update(batch, FLAGS.utd_ratio)
+            tok = time.time()
+            print('time used for one update: ', tok - tik)
 
             if i % FLAGS.log_interval == 0:
                 for k, v in update_info.items():
