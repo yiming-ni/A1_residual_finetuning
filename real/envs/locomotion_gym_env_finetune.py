@@ -11,7 +11,7 @@ from collections import deque
 from dataclasses import dataclass
 from real.envs.env_wrappers.action_filter import ActionFilterButter
 from real.interface.a1_interface import A1Interface
-# import roslibpy
+import roslibpy
 
 import time
 
@@ -38,6 +38,7 @@ class LocomotionGymEnv(gym.Env):
     """The gym environment for the locomotion tasks."""
 
     def __init__(self,
+                 episode_length,
                  recv_IP='127.0.0.1',
                  recv_port=8001,
                  send_IP='127.0.0.1',
@@ -49,6 +50,7 @@ class LocomotionGymEnv(gym.Env):
                  ):
 
         self.seed()
+        self.ep_len = episode_length
 
         self.pGain = [80.0] * 12
         self.dGain = 12 * [1.0]
@@ -92,13 +94,13 @@ class LocomotionGymEnv(gym.Env):
         self.iters_so_far = 0
         self.update_iter(self.iters_so_far)
 
-        # self.client = roslibpy.Ros(host='localhost', port=9090)
-        # self.client.run()
+        self.client = roslibpy.Ros(host='localhost', port=9090)
+        self.client.run()
 
-        # self.ball_listener = roslibpy.Topic(self.client, '/global_ball_pos', 'std_msgs/Float32MultiArray')
-        # self.ball_listener.subscribe(self.ball_msg_callback)
-        # self.goal_listener = roslibpy.Topic(self.client, '/global_robot_pos', 'std_msgs/Float32MultiArray')
-        # self.goal_listener.subscribe(self.robot_pos_msg_callback)
+        self.ball_listener = roslibpy.Topic(self.client, '/global_ball_pos', 'std_msgs/Float32MultiArray')
+        self.ball_listener.subscribe(self.ball_msg_callback)
+        self.goal_listener = roslibpy.Topic(self.client, '/global_robot_pos', 'std_msgs/Float32MultiArray')
+        self.goal_listener.subscribe(self.robot_pos_msg_callback)
 
     def close(self):
         if hasattr(self, '_robot') and self._robot:
@@ -146,7 +148,6 @@ class LocomotionGymEnv(gym.Env):
 
         if use_pid:
             self._reset_robot_pose()
-            print("Training")
             self._init_obs_a1_state()
             obs = self.a1.receive_observation()
             self.process_recv_package(obs)
@@ -206,7 +207,9 @@ class LocomotionGymEnv(gym.Env):
             self.cycle_timestep += 1
 
     def _termination(self):
-
+        if self.timestep > self.ep_len:
+            return True
+        # TODO: add other conditions
         return False
 
     ##########################################

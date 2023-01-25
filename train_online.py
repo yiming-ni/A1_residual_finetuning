@@ -48,6 +48,11 @@ flags.DEFINE_string('object_type', 'sphere', 'Type of the object: sphere, box, c
 flags.DEFINE_list('object_size', ['0.097'], 'Size of the regular shaped object.')
 flags.DEFINE_boolean('sparse_reward', False, 'Whether to use sparse distance reward.')
 flags.DEFINE_boolean('randomize_object', False, 'Whether to randomize the object params in each episode.')
+flags.DEFINE_boolean('ep_update', False, 'Whether to use episode update for the agent (default is step udpate).')
+flags.DEFINE_string('receive_ip', '127.0.0.1', 'Receive IP Address')
+flags.DEFINE_string('send_ip', '127.0.0.1', 'Send IP Address')
+flags.DEFINE_integer('receive_port', 8001, 'Receive port')
+flags.DEFINE_integer('send_port', 8000, 'Send port')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -109,7 +114,7 @@ def main(_):
     if FLAGS.real_robot:
         from real.envs.locomotion_gym_env_finetune import LocomotionGymEnv
         from real.envs.env_wrappers.residual import ResidualWrapper
-        env = LocomotionGymEnv()
+        env = LocomotionGymEnv(recv_IP=FLAGS.receive_ip, recv_port=FLAGS.receive_port, send_IP=FLAGS.send_ip, send_port=FLAGS.send_port, episode_length=FLAGS.ep_len)
         # import ipdb; ipdb.set_trace()
         env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
         # import ipdb; ipdb.set_trace()
@@ -219,11 +224,17 @@ def main(_):
     for i in tqdm.tqdm(range(start_i, FLAGS.max_steps),
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
-        if i < FLAGS.start_training:
-            # action = env.action_space.sample()
-            action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
+        if FLAGS.ep_update:
+            if i < FLAGS.ep_len:
+                action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
+            else:
+                action, agent = agent.sample_actions(observation)
         else:
-            action, agent = agent.sample_actions(observation)
+            if i < FLAGS.start_training:
+                # action = env.action_space.sample()
+                action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
+            else:
+                action, agent = agent.sample_actions(observation)
         next_observation, reward, done, info = env.step(action)
 
         if save_training_video:
@@ -254,20 +265,35 @@ def main(_):
 
         if done:
             observation, done = env.reset(), False
+            # start episode update
+            if FLAGS.ep_update:
+                print("Start updating...")
+                tik = time.time()
+                batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
+                for _ in range(FLAGS.ep_len):
+                    agent, update_info = agent.update(batch, FLAGS.utd_ratio)
+                tok = time.time()
+                print("Updating finished. Time used is ", tok - tik)
+                for k, v in update_info.items():
+                        wandb.log({f'training/{k}': v}, step=i)
+            # end episode update
             for k, v in info['episode'].items():
                 decode = {'r': 'return', 'l': 'length', 't': 'time'}
                 wandb.log({f'training/{decode[k]}': v}, step=i)
 
-        if i >= FLAGS.start_training:
-            batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
-            tik = time.time()
-            agent, update_info = agent.update(batch, FLAGS.utd_ratio)
-            tok = time.time()
-            print('time used for one update: ', tok - tik)
+        if not FLAGS.ep_update:
+            # start step update
+            if i >= FLAGS.start_training:
+                batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
+                tik = time.time()
+                agent, update_info = agent.update(batch, FLAGS.utd_ratio)
+                tok = time.time()
+                print('time used for one update: ', tok - tik)
 
-            if i % FLAGS.log_interval == 0:
-                for k, v in update_info.items():
-                    wandb.log({f'training/{k}': v}, step=i)
+                if i % FLAGS.log_interval == 0:
+                    for k, v in update_info.items():
+                        wandb.log({f'training/{k}': v}, step=i)
+            # end step update
 
         if i % FLAGS.eval_interval == 0:
             if not FLAGS.real_robot:

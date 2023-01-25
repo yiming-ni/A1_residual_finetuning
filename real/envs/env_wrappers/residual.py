@@ -131,11 +131,11 @@ class ResidualWrapper(gym.Wrapper):
         body_rotation = self.env.obs_a1_state.rot_quat
         body_pos = self.env.obs_a1_state.base_pos
         joint_pos = self.env.obs_a1_state.motor_pos
-        ball_loc = self.env.obs_a1_state.ball_loc  # TODO not implemented
+        ball_loc = self.env.obs_a1_state.ball_loc
         # goal_loc = self.env.obs_a1_state.goal_loc  # TODO not implemented
 
         # hack
-        ball_loc = np.array([0.6, 0, 0.1])
+        # ball_loc = np.array([0.6, 0, 0.1])
         goal_loc = np.array([1.2, 0, 0])
 
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
