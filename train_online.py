@@ -53,6 +53,8 @@ flags.DEFINE_string('receive_ip', '127.0.0.1', 'Receive IP Address')
 flags.DEFINE_string('send_ip', '127.0.0.1', 'Send IP Address')
 flags.DEFINE_integer('receive_port', 8001, 'Receive port')
 flags.DEFINE_integer('send_port', 8000, 'Send port')
+flags.DEFINE_bool('real_ball', False, 'Whether to use a real ball through cameras.')
+flags.DEFINE_bool('real_goal', False, 'Whether to use a real robot odometry.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -114,7 +116,7 @@ def main(_):
     if FLAGS.real_robot:
         from real.envs.locomotion_gym_env_finetune import LocomotionGymEnv
         from real.envs.env_wrappers.residual import ResidualWrapper
-        env = LocomotionGymEnv(recv_IP=FLAGS.receive_ip, recv_port=FLAGS.receive_port, send_IP=FLAGS.send_ip, send_port=FLAGS.send_port, episode_length=FLAGS.ep_len)
+        env = LocomotionGymEnv(recv_IP=FLAGS.receive_ip, recv_port=FLAGS.receive_port, send_IP=FLAGS.send_ip, send_port=FLAGS.send_port, episode_length=FLAGS.ep_len, real_ball=FLAGS.real_ball, real_goal=FLAGS.real_goal)
         # import ipdb; ipdb.set_trace()
         env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
         # import ipdb; ipdb.set_trace()

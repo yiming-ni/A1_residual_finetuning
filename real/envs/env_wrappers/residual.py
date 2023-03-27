@@ -19,7 +19,10 @@ NUM_CURR_OBS = 18 + 3
 local_root_obs = True
 num_obs = 518
 # MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
-MODEL_PATH = '/home/yiming-ni/A1_Dribbling/threshold05_65000.pth'
+# MODEL_PATH = '/home/yiming-ni/A1_Dribbling/threshold05_65000.pth'
+# MODEL_PATH = '/home/yiming-ni/A1_Dribbling/randurdf_randgoal_cont_30000.pth'
+MODEL_PATH = '/home/yiming-ni/A1_Dribbling/randurdf_randgoal_randr_cont_50000.pth'
+# MODEL_PATH = '/home/yiming-ni/A1_Dribbling/fixurdf_randgoal_cont_20000.pth'
 
 NUM_MOTORS = 12
 
@@ -132,11 +135,11 @@ class ResidualWrapper(gym.Wrapper):
         body_pos = self.env.obs_a1_state.base_pos
         joint_pos = self.env.obs_a1_state.motor_pos
         ball_loc = self.env.obs_a1_state.ball_loc
-        # goal_loc = self.env.obs_a1_state.goal_loc  # TODO not implemented
+        goal_loc = self.env.obs_a1_state.goal_loc  # TODO not implemented
 
         # hack
         # ball_loc = np.array([0.6, 0, 0.1])
-        goal_loc = np.array([1.2, 0, 0])
+        # goal_loc = np.array([1.2, 0, 0])
 
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)

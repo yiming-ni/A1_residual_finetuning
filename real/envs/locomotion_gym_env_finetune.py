@@ -39,10 +39,12 @@ class LocomotionGymEnv(gym.Env):
 
     def __init__(self,
                  episode_length,
+                 real_ball,
+                 real_goal,
                  recv_IP='127.0.0.1',
                  recv_port=8001,
                  send_IP='127.0.0.1',
-                 send_port=8000
+                 send_port=8000,
                 #  recv_IP="192.168.123.132",
                 #  recv_port=32770,
                 #  send_IP="192.168.123.12",
@@ -51,6 +53,8 @@ class LocomotionGymEnv(gym.Env):
 
         self.seed()
         self.ep_len = episode_length
+        self.real_ball = real_ball
+        self.real_goal = real_goal
 
         self.pGain = [80.0] * 12
         self.dGain = 12 * [1.0]
@@ -94,13 +98,17 @@ class LocomotionGymEnv(gym.Env):
         self.iters_so_far = 0
         self.update_iter(self.iters_so_far)
 
-        self.client = roslibpy.Ros(host='localhost', port=9090)
-        self.client.run()
+        if self.real_ball or self.real_goal:
+            self.client = roslibpy.Ros(host='localhost', port=9090)
+            self.client.run()
 
-        self.ball_listener = roslibpy.Topic(self.client, '/global_ball_pos', 'std_msgs/Float32MultiArray')
-        self.ball_listener.subscribe(self.ball_msg_callback)
-        self.goal_listener = roslibpy.Topic(self.client, '/global_robot_pos', 'std_msgs/Float32MultiArray')
-        self.goal_listener.subscribe(self.robot_pos_msg_callback)
+        if self.real_ball:
+            self.ball_listener = roslibpy.Topic(self.client, '/global_ball_pos', 'std_msgs/Float32MultiArray')
+            self.ball_listener.subscribe(self.ball_msg_callback)
+        
+        if self.real_goal:
+            self.goal_listener = roslibpy.Topic(self.client, '/global_robot_pos', 'std_msgs/Float32MultiArray')
+            self.goal_listener.subscribe(self.robot_pos_msg_callback)
 
     def close(self):
         if hasattr(self, '_robot') and self._robot:
@@ -124,7 +132,7 @@ class LocomotionGymEnv(gym.Env):
     def _init_obs_a1_state(self):
         rot_quat = np.zeros((4,))
         motor_pos = np.zeros((12,))
-        ball_loc = np.array([3., 0., 0.])
+        ball_loc = np.array([3., 0., 0.1])
         goal_loc = np.array([4., 0., 0.])
         base_pos = np.array([0., 0., 0.27])
         self.obs_a1_state = A1State(ball_loc=ball_loc, goal_loc=goal_loc, rot_quat=rot_quat, base_pos=base_pos,
