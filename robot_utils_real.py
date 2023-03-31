@@ -15,7 +15,7 @@ def compute_local_root_quat(root_rot):
     heading_rot = calc_heading_quat_inv(root_rot)
     root_rot_obs = quat_mul(heading_rot, root_rot)
     root_rot_obs = quat_to_tan_norm(root_rot_obs)
-    root_rot_obs = quat_to_tan_norm(root_rot_obs)
+    # root_rot_obs = quat_to_tan_norm(root_rot_obs)
     return root_rot_obs
 
 
