@@ -1,7 +1,6 @@
 from collections import deque
 
 import gym
-import ipdb
 import numpy as np
 import torch
 # from multiprocessing import Process
@@ -23,7 +22,7 @@ if is_dribble:
     NUM_CURR_OBS = 18 + 3
     local_root_obs = True
     num_obs = 518
-    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
+    MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randurdf_randgoal_randr_cont/nn/randurdf_randgoal_randr_cont_70000.pth'
 else:
     NUM_CURR_OBS = 16
     local_root_obs = False

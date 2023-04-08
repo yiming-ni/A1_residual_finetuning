@@ -3,7 +3,6 @@ import os
 import pickle
 import shutil
 
-import ipdb
 import numpy as np
 import tqdm
 
@@ -100,7 +99,7 @@ def main(_):
     if FLAGS.randomize_object:
         exp_name = FLAGS.exp_group + '_randomize_obj' + str(FLAGS.residual_scale)
     else:
-        exp_name = FLAGS.exp_group + str(FLAGS.object_size) + str(FLAGS.energy_weight)
+        exp_name = FLAGS.exp_group + str(FLAGS.object_size[0]) + str(FLAGS.energy_weight)
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)

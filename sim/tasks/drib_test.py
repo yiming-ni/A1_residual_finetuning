@@ -1,7 +1,6 @@
 from typing import Optional, Tuple
 
 import dm_control.utils.transformations as tr
-import ipdb
 import numpy as np
 from dm_control import composer
 from dm_control.composer.observation import observable
