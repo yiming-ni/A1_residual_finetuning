@@ -21,7 +21,7 @@ num_obs = 518
 # MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
 # MODEL_PATH = '/home/yiming-ni/A1_Dribbling/threshold05_65000.pth'
 # MODEL_PATH = '/home/yiming-ni/A1_Dribbling/randurdf_randgoal_cont_30000.pth'
-MODEL_PATH = '/home/yiming-ni/A1_Dribbling/randurdf_randgoal_randr_cont_50000.pth'
+MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randurdf_randgoal_randr_cont/nn/randurdf_randgoal_randr_cont_50000.pth'
 # MODEL_PATH = '/home/yiming-ni/A1_Dribbling/fixurdf_randgoal_cont_20000.pth'
 
 NUM_MOTORS = 12
