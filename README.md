@@ -16,7 +16,7 @@ To build, run:
 cd real/third_party/unitree_legged_sdk
 mkdir build
 cd build
-cmake ..
+cmake ../
 make
 ``` 
 

@@ -5,7 +5,7 @@ import numpy as np
 import gym
 import gym.spaces
 from absl import logging
-from dm_control.utils import rewards
+# from dm_control.utils import rewards
 from real import resetters
 from real.envs import env_builder
 from real.robots import a1, a1_robot, robot_config
@@ -55,6 +55,9 @@ class A1Real(gym.Env):
                                                 shape=obs.shape,
                                                 dtype=np.float32)
         self.energy_weight = energy_weight
+        self.env._robot.SetMotorGains(kp=[80.0] * 12, kd=[1.0] * 12)
+        self.ball_loc = np.array([1, -1, 0.1])
+        self.goal_loc = np.array([4, 0, 0])
 
     def _reset_var(self):
         self.prev_action = np.zeros_like(self.action_space.low)
@@ -63,10 +66,9 @@ class A1Real(gym.Env):
         self._prev_pose = None
 
     def reset(self):
-        self.env._robot.SetMotorGains(kp=self.original_kps,
-                                      kd=self.original_kds)
-        self.resetter()
-        self.env._robot.SetMotorGains(kp=[60.0] * 12, kd=[4.0] * 12)
+        # self.env._robot.SetMotorGains(kp=self.original_kps,
+        #                               kd=self.original_kds)
+        # self.resetter()
         self._reset_var()
         input("Press Enter to Continue")
 
@@ -130,81 +132,82 @@ class A1Real(gym.Env):
 
         self._foot_contacts = self.env._robot.GetFootContacts().astype(
             np.float32)
-
+        print("underlying obs being queried")
         return np.concatenate(
             [qpos, qvel, new_vel, imu, self.prev_action,
              self._foot_contacts]).astype(np.float32)
 
     def step(self, action):
-        assert self.env._robot._action_repeat == 50
+        # print("ACTION REPEAT", self.env._robot._action_repeat)
+        # print("ENV TIME STEP", self.env._env_time_step)
         self.env._robot.Step(action, robot_config.MotorControlMode.POSITION)
 
-        obs = self.observation()
-        self.prev_action[:] = action
+        # obs = self.observation()
+        # self.prev_action[:] = action
 
-        accel_velocity = self.env._robot.GetBaseVelocity()
-        velocity = self._estimated_velocity.copy()
-        roll, pitch, yaw = self.env._robot.GetTrueBaseRollPitchYaw()
-        drpy = self.env._robot.GetBaseRollPitchYawRate()
+        # accel_velocity = self.env._robot.GetBaseVelocity()
+        # velocity = self._estimated_velocity.copy()
+        # roll, pitch, yaw = self.env._robot.GetTrueBaseRollPitchYaw()
+        # drpy = self.env._robot.GetBaseRollPitchYawRate()
 
-        lin_vel = self._estimated_velocity[0]
-        target_vel = .5
+        # lin_vel = self._estimated_velocity[0]
+        # target_vel = .5
 
-        term_rad_roll = term_rad_pitch = np.deg2rad(30)
+        # term_rad_roll = term_rad_pitch = np.deg2rad(30)
 
-        # reward = rewards.tolerance(lin_vel * np.cos(pitch),
-        #                            bounds=(target_vel, 2 * target_vel),
-        #                            margin=2 * target_vel,
-        #                            value_at_margin=0,
-        #                            sigmoid='linear')
-        # reward -= 0.1 * np.abs(drpy[-1])
-        # reward *= max(self._foot_contacts)
-        # reward *= 10.0
+        # # reward = rewards.tolerance(lin_vel * np.cos(pitch),
+        # #                            bounds=(target_vel, 2 * target_vel),
+        # #                            margin=2 * target_vel,
+        # #                            value_at_margin=0,
+        # #                            sigmoid='linear')
+        # # reward -= 0.1 * np.abs(drpy[-1])
+        # # reward *= max(self._foot_contacts)
+        # # reward *= 10.0
 
-        ball_pos = self.env._robot.GetBallPosition()
-        goal_pos = self.env._robot.GetGoalPosition()
+        # # ball_pos = self.env._robot.GetBallPosition()
+        # # goal_pos = self.env._robot.GetGoalPosition()
 
-        qvel = self.env._robot.GetMotorVelocities()
-        torque = self.env._robot._observed_motor_torques
+        # qvel = self.env._robot.GetMotorVelocities()
+        # torque = self.env._robot._observed_motor_torques
 
-        reward = self.get_reward()
+        # reward = self.get_reward(self.ball_loc, self.goal_loc, torque, qvel)
 
-        energy = (qvel * torque).sum()
+        # energy = (qvel * torque).sum()
 
-        if abs(roll) > term_rad_roll or abs(
-                pitch) > term_rad_pitch or not self.env._robot._is_safe:
-            done = True
-        else:
-            done = False
+        # if abs(roll) > term_rad_roll or abs(
+        #         pitch) > term_rad_pitch or not self.env._robot._is_safe:
+        #     done = True
+        # else:
+        #     done = False
 
-        info = {
-            'velocity':
-            velocity,
-            'acc_velocity':
-            accel_velocity,
-            'raw_acc':
-            self.env._robot._velocity_estimator._raw_acc.copy(),
-            'calibrated_acc':
-            self.env._robot._velocity_estimator._calibrated_acc.copy(),
-            'leg_vels':
-            np.array(self.env._robot._velocity_estimator._observed_velocities),
-            'rpy':
-            np.array([roll, pitch, yaw]),
-            'jangles':
-            self.env._robot.GetMotorAngles(),
-            'energy':
-            energy,
-            'x_vel':
-            lin_vel * np.exp(-np.abs(drpy[1:]).mean()),
-            'dr':
-            drpy[0],
-            'dp':
-            drpy[1],
-            'dy':
-            drpy[2]
-        }
-
-        return obs, reward, done, info
+        # info = {
+        #     'velocity':
+        #     velocity,
+        #     'acc_velocity':
+        #     accel_velocity,
+        #     'raw_acc':
+        #     self.env._robot._velocity_estimator._raw_acc.copy(),
+        #     'calibrated_acc':
+        #     self.env._robot._velocity_estimator._calibrated_acc.copy(),
+        #     'leg_vels':
+        #     np.array(self.env._robot._velocity_estimator._observed_velocities),
+        #     'rpy':
+        #     np.array([roll, pitch, yaw]),
+        #     'jangles':
+        #     self.env._robot.GetMotorAngles(),
+        #     'energy':
+        #     energy,
+        #     'x_vel':
+        #     lin_vel * np.exp(-np.abs(drpy[1:]).mean()),
+        #     'dr':
+        #     drpy[0],
+        #     'dp':
+        #     drpy[1],
+        #     'dy':
+        #     drpy[2]
+        # }
+        reward = 0
+        return None, reward, False, {}
 
     def get_reward(self, ball_pos, goal_pos, torque, qvel):
 

@@ -8,8 +8,8 @@ tensorflow
 tensorflow_probability
 ml_collections
 wandb
-dm_control
-dmcgym @ git+https://github.com/ikostrikov/dmcgym
+# dm_control
+# dmcgym @ git+https://github.com/ikostrikov/dmcgym
 pybullet
 attrs
 filterpy
