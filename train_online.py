@@ -44,7 +44,7 @@ flags.DEFINE_boolean('real_robot', False, 'Use real robot.')
 flags.DEFINE_boolean('just_render', False, 'Just render.')
 flags.DEFINE_string('load_dir', '', 'Directory of model and buffer to load from.')
 flags.DEFINE_float('residual_scale', 0.1, 'Defines the residual action range.')
-flags.DEFINE_float('energy_weight', 0.01, 'Weightage for energy reward term.')
+flags.DEFINE_float('energy_weight', 0.0, 'Weightage for energy reward term.')
 flags.DEFINE_string('object_type', 'sphere', 'Type of the object: sphere, box, cylinder.')
 flags.DEFINE_list('object_size', ['0.097'], 'Size of the regular shaped object.')
 flags.DEFINE_boolean('sparse_reward', False, 'Whether to use sparse distance reward.')
@@ -57,6 +57,7 @@ flags.DEFINE_integer('receive_port', 8001, 'Receive port')
 flags.DEFINE_integer('send_port', 8000, 'Send port')
 flags.DEFINE_bool('real_ball', False, 'Whether to use a real ball through cameras.')
 flags.DEFINE_bool('real_pos', False, 'Whether to use a real robot odometry.')
+flags.DEFINE_bool('fov', False, 'Whether to limit camera field of view.')
 config_flags.DEFINE_config_file(
     'config',
     'configs/sac_config.py',
@@ -64,7 +65,7 @@ config_flags.DEFINE_config_file(
     lock_config=False)
 
 
-def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
+def evaluate_with_video(agent, env: gym.Env, num_episodes: int, zero_acs: bool = False):
     videos = []
 
     # f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
@@ -78,7 +79,6 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
     for ep in range(num_episodes):
         observation, done = env.reset(), False
         while not done:
-            # img = get_image(env)
             if ep == 0:
                 img = env.render(mode='rgb_array', width=128, height=128)
                 videos.append(img)
@@ -87,10 +87,15 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int):
             # action = env.env.env.env.env.env.get_action_from_numpy(observation)
             # action = np.zeros(12)
             # print('actions: ', action)
-            action = agent.eval_actions(observation)
+            if zero_acs:
+                action = np.zeros(12)
+            else:
+                action = agent.eval_actions(observation)
 
             observation, _, done, _ = env.step(action)
+            # print("current timestep:", counter)
             # counter += 1
+
 
     eval_info = {
         'return': np.mean(env.return_queue),
@@ -107,7 +112,7 @@ def main(_):
     if FLAGS.randomize_object:
         exp_name = FLAGS.exp_group + '_randomize_obj' + str(FLAGS.residual_scale)
     else:
-        exp_name = FLAGS.exp_group + str(FLAGS.object_size[0]) + str(FLAGS.energy_weight)
+        exp_name = FLAGS.exp_group + str(FLAGS.object_size[0]) + FLAGS.object_type
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)
@@ -130,6 +135,7 @@ def main(_):
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
             FLAGS.env_name,
+            fov=FLAGS.fov,
             separate_log=FLAGS.separate_log,
             sparse_reward=FLAGS.sparse_reward,
             ep_len=FLAGS.ep_len,
@@ -177,6 +183,7 @@ def main(_):
     if not FLAGS.real_robot:
         eval_env = make_mujoco_env(
             FLAGS.env_name,
+            fov=FLAGS.fov,
             separate_log=FLAGS.separate_log,
             sparse_reward=FLAGS.sparse_reward,
             ep_len=FLAGS.ep_len,
@@ -230,8 +237,19 @@ def main(_):
     for i in tqdm.tqdm(range(start_i, FLAGS.max_steps),
                        smoothing=0.1,
                        disable=not FLAGS.tqdm):
+        curr_start = 0
+        if i == start_i == 0:
+            if not FLAGS.real_robot:
+                if FLAGS.save_video:
+                    eval_info = evaluate_with_video(agent,
+                                         eval_env,
+                                         num_episodes=FLAGS.eval_episodes,
+                                         zero_acs=True)
+                for k, v in eval_info.items():
+                    wandb.log({f'evaluation/{k}': v}, step=i)
+
         if FLAGS.ep_update:
-            if i < FLAGS.ep_len:
+            if i < FLAGS.start_training:
                 action = gym.spaces.Box(-1., 1., shape=env.action_space.low.shape, dtype=np.float32).sample()
             else:
                 action, agent = agent.sample_actions(observation)
@@ -270,38 +288,38 @@ def main(_):
             save_training_video = False
 
         if done:
+            
             observation, done = env.reset(), False
             # start episode update
             if FLAGS.ep_update:
                 print("Start updating...")
-                tik = time.time()
-                batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
-                for _ in range(FLAGS.ep_len):
-                    agent, update_info = agent.update(batch, FLAGS.utd_ratio)
-                tok = time.time()
-                print("Updating finished. Time used is ", tok - tik)
-                for k, v in update_info.items():
-                        wandb.log({f'training/{k}': v}, step=i)
+                
+                if i >= FLAGS.start_training:
+                    
+                    for _ in range(i - curr_start): # actual length of episode
+                        batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
+                        agent, update_info = agent.update(batch, FLAGS.utd_ratio)
+                    for k, v in update_info.items():
+                            wandb.log({f'training/{k}': v}, step=i)
             # end episode update
             for k, v in info['episode'].items():
                 decode = {'r': 'return', 'dr': 'distance_return', 'er': 'energy_return', 'l': 'length', 't': 'time'}
                 wandb.log({f'training/{decode[k]}': v}, step=i)
 
+            curr_start = i
+
         if not FLAGS.ep_update:
             # start step update
             if i >= FLAGS.start_training:
                 batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)
-                tik = time.time()
                 agent, update_info = agent.update(batch, FLAGS.utd_ratio)
-                tok = time.time()
-                print('time used for one update: ', tok - tik)
 
                 if i % FLAGS.log_interval == 0:
                     for k, v in update_info.items():
                         wandb.log({f'training/{k}': v}, step=i)
             # end step update
 
-        if i % FLAGS.eval_interval == 0:
+        if i % FLAGS.eval_interval == 1:
             if not FLAGS.real_robot:
                 save_training_video = True
                 if FLAGS.save_video:

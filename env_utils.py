@@ -51,6 +51,7 @@ def make_env(task_name: str,
              energy_weight: float,
              control_frequency: int = 33,
              randomize_ground: bool = False,
+             fov: bool = False,
              action_history: int = 1):
     robot = A1(action_history=action_history)
     # robot.kd = 5
@@ -70,7 +71,7 @@ def make_env(task_name: str,
     env = EnvironmentWrapper(task, strip_singleton_obs_buffer_dim=True)
     env = DMCGYMWrapper(env)
     env = FlattenObservation(env)
-    env = ResidualWrapper(env, residual_scale=residual_scale)
+    env = ResidualWrapper(env, residual_scale=residual_scale, fov=fov)
 
     return env
 
@@ -88,9 +89,11 @@ def make_mujoco_env(env_name: str,
                     energy_weight: float,
                     ep_len: int,
                     clip_actions: bool = True,
+                    fov: bool = False,
                     action_filter_high_cut: Optional[float] = -1,
                     action_history: int = 1) -> gym.Env:
     env = make_env(env_name,
+                   fov=fov,
                    separate_log=separate_log,
                    sparse_reward=sparse_reward,
                    object_params=object_params,
