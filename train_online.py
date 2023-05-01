@@ -24,6 +24,7 @@ flags.DEFINE_string('env_name', 'A1Run-v0', 'Environment name.')
 flags.DEFINE_string('exp_group', 'default', 'Experiment group name.')
 flags.DEFINE_string('save_dir', './tmp/', 'Tensorboard logging dir.')
 flags.DEFINE_integer('seed', 42, 'Random seed.')
+flags.DEFINE_boolean('just_eval', False, 'Only evaluate a policy.')
 flags.DEFINE_integer('eval_episodes', 10,
                      'Number of episodes used for evaluation.')
 flags.DEFINE_integer('log_interval', 1000, 'Logging interval.')
@@ -100,6 +101,30 @@ def evaluate_with_video(agent, env: gym.Env, num_episodes: int, zero_acs: bool =
     eval_info = {
         'return': np.mean(env.return_queue),
         'length': np.mean(env.length_queue),
+        'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=33, format="gif")
+    }
+    return eval_info
+
+def eval_only(agent, env, num_episodes):
+    videos = []
+    returns = []
+    for ep in range(num_episodes):
+        observation, done = env.reset(), False
+        episodic_return = 0
+        while not done:
+            if ep == 0:
+                img = env.render(mode='rgb_array', width=128, height=128)
+                videos.append(img)
+
+            action = agent.eval_actions(observation)
+
+            observation, reward, done, _ = env.step(action)
+            episodic_return += reward
+        returns.append(episodic_return)
+
+    eval_info = {
+        'return': np.mean(returns),
+        'return_std': np.std(returns),
         'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=33, format="gif")
     }
     return eval_info
@@ -196,7 +221,7 @@ def main(_):
             action_history=FLAGS.action_history)
 
         eval_env = wrap_gym(eval_env, rescale_actions=False)
-        eval_env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=FLAGS.eval_episodes)
+        eval_env = gym.wrappers.RecordEpisodeStatistics(eval_env, deque_size=FLAGS.eval_episodes)
         eval_env.seed(FLAGS.seed + 42)
 
     kwargs = dict(FLAGS.config)
@@ -228,6 +253,12 @@ def main(_):
                 replay_buffer = pickle.load(f)
         except:
             print("Failed to load buffer from", load_buffer_dir)
+
+    if FLAGS.just_eval:
+        eval_info = eval_only(agent, eval_env, num_episodes=FLAGS.eval_episodes)
+        wandb.log({f'evaluation/video': eval_info['video']}, step=0)
+        print('return mean: {} \nreturn std: {}'.format(eval_info['return'], eval_info['return_std']))
+        return
 
     videos = []
     observation, done = env.reset(), False
