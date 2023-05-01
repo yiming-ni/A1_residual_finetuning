@@ -1,7 +1,7 @@
 from collections import deque
 
 import gym
-import ipdb
+
 import numpy as np
 import torch
 # from multiprocessing import Process
@@ -11,11 +11,8 @@ from rl_games.algos_torch.running_mean_std import RunningMeanStd
 from rl_games.algos_torch.models import ModelA2CContinuousLogStd
 import copy
 
-from dmcgym.env import dmc_obs2gym_obs
-
 from ..wrappers.action_filter import ActionFilterButter
 from sim.robots.robot_utils import compute_local_root_quat, compute_local_pos
-import gym.spaces as spaces
 
 is_dribble = True
 
@@ -23,8 +20,11 @@ if is_dribble:
     NUM_CURR_OBS = 18 + 3
     local_root_obs = True
     num_obs = 518
-    # MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/threshold05_65000.pth'
-    MODEL_PATH = '/home/yiming-ni/A1_dribbling/A1_AMP/isaacgymenvs/runs/addrew_006_tr07.pth'
+    # MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randurdf_randgoal_randr_cont/nn/randurdf_randgoal_randr_cont_70000.pth'
+    # MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randurdf_fixgoal_randr_fov/nn/randurdf_fixgoal_randr_fov_50000.pth'
+    MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randr_fov_small/nn/randr_fov_small_47300.pth'
+    # MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/threshold05/nn/threshold05_65000.pth'
+
 else:
     NUM_CURR_OBS = 16
     local_root_obs = False
@@ -50,7 +50,7 @@ ARGS = {'actions_num': 12, 'input_shape': (num_obs,), 'num_seqs': 4096, 'value_s
 
 class ResidualWrapper(gym.Wrapper):
     # class AddPreviousActions(gym.ObservationWrapper):
-    def __init__(self, env, residual_scale, real_robot: bool = False, action_history: int = 15, *args, **kwargs):
+    def __init__(self, env, residual_scale, fov, real_robot: bool = False, action_history: int = 15, *args, **kwargs):
         super().__init__(env, *args, **kwargs)
         # import ipdb; ipdb.set_trace()
 
@@ -74,6 +74,19 @@ class ResidualWrapper(gym.Wrapper):
         self.prev_actions = deque(maxlen=action_history)
         self.observation_space = gym.spaces.Box(-1., 1., shape=(num_obs + NUM_MOTORS,), dtype=np.float32)
         self.real_robot = real_robot
+
+         # init fov
+        self.is_fov = fov
+        if self.is_fov:
+            self.blind = 0.
+            self.fov = np.zeros(4)
+            self.fov[0] = 0.25
+            self.fov[1] = 5.0
+            self.fov[2] = 1.732
+            self.fov[-1] = 0.3
+
+            # init local_ball_pos_prev
+            self.local_ball_pos_prev = torch.zeros((1, 3), dtype=torch.float)
 
     def _build_net(self, config):
         net = network_builder.A2CBuilder.Network(PARAMS, **config)
@@ -137,6 +150,8 @@ class ResidualWrapper(gym.Wrapper):
         self._action_filter.init_history(self._pd_action_offset)
         # self._action_filter.init_history(self.env.task_robot._INIT_QPOS)
         super().reset(*args, **kwargs)
+        if self.is_fov:
+            self.local_ball_pos_prev = torch.zeros((1, 3), dtype=torch.float)
         obs = self.reset_obs()
         # add ppo output (zero) to ppo obs
         return np.concatenate([obs, np.zeros(12)])
@@ -185,21 +200,59 @@ class ResidualWrapper(gym.Wrapper):
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)
         joint_pos = torch.from_numpy(joint_pos).unsqueeze(0)
         prev_actions = torch.from_numpy(prev_actions).unsqueeze(0)
+
+        # ball_loc = np.array([2.0, 1, 0.1])
+        # goal_loc = np.array([3, 0, 0])
+
         ball_loc = torch.from_numpy(ball_loc).unsqueeze(0)
         goal_loc = torch.from_numpy(goal_loc).unsqueeze(0)
         local_ball_obs = compute_local_pos(body_pos, ball_loc, body_rotation)
+        # print('local_ball_pos: ', local_ball_obs)
+        if self.is_fov:
+            local_ball_obs = self._check_fov(local_ball_obs)
+        else:
+            local_ball_obs[:, 2] = ball_loc[:, 2]
+        # local_ball_obs[:, 0] = 3
+        # local_ball_obs[:, 1] = 0
+        # local_ball_obs[:, 2] = 0.1
+
         local_goal_obs = compute_local_pos(body_pos, goal_loc, body_rotation)[:, :2]
+        # print("robot pos: {}, ball pos: {}, goal pos: {}".format(body_pos, local_ball_obs, local_goal_obs))
         body_rotation = compute_local_root_quat(body_rotation)
         curr_obs = torch.cat((body_rotation, joint_pos, local_ball_obs), dim=-1)
         return curr_obs, local_goal_obs, prev_actions
 
+    def _check_fov(self, local_ball_pos):
+        outside = ((local_ball_pos[:, 0] < self.fov[0]) |
+                    (local_ball_pos[:, 0] > self.fov[1]) |
+                    (local_ball_pos[:, 1] > self.fov[2] * local_ball_pos[:, 0]) |
+                    (local_ball_pos[:, 1] < - self.fov[2] * local_ball_pos[:, 0]) |
+                    (local_ball_pos[:, 2] > self.fov[-1]))
+
+        # import ipdb; ipdb.set_trace(cond=torch.any(outside))
+        if local_ball_pos[:, 0] > self.fov[1]:
+            print('problem')
+        if outside[0] == 1.0:
+            self.blind = 1.0
+            local_ball_pos[:] = self.local_ball_pos_prev[:]
+        else:
+            self.blind = 0.0
+            self.local_ball_pos_prev[:] = local_ball_pos[:]
+
+        return local_ball_pos
+
     def _get_real_obs_for_dribble(self):
         # TODO: use method _robot.get... to copy over
-        body_rotation = self.env.env._robot._base_orientation.copy()
-        body_pos = self.env.env._robot._base_position.copy()  # TODO not implemented
-        joint_pos = self.env.env._robot._motor_angles.copy()
-        ball_loc = self.env.env._robot._ball_position.copy()  # TODO not implemented
-        goal_loc = self.env.env._robot._gall_position.copy()  # TODO not implemented
+        body_rotation = self.env.env._robot.GetBaseOrientation()
+        body_pos = self.env.env._robot.GetBasePosition()
+        joint_pos = self.env.env._robot.GetMotorAngles()
+        # ball_loc = self.env.env._robot.GetBallPosition()  # TODO not implemented
+        # goal_loc = self.env.env._robot.GetGoalPosition()  # TODO not implemented
+
+        # hack 
+        ball_loc = self.env.ball_loc
+        goal_loc = self.env.goal_loc
+
         body_rotation = torch.from_numpy(body_rotation).unsqueeze(0)
         body_pos = torch.from_numpy(body_pos).unsqueeze(0)
         joint_pos = torch.from_numpy(joint_pos).unsqueeze(0)
@@ -214,6 +267,7 @@ class ResidualWrapper(gym.Wrapper):
     def make_dribble_obs(self):
         if self.real_robot:
             curr_obs, local_goal_obs = self._get_real_obs_for_dribble()
+            # import ipdb; ipdb.set_trace()
             return torch.cat(list(self.prev_observations) + [curr_obs, local_goal_obs] + list(self.prev_actions),
                              dim=-1).cpu().numpy().flatten(), curr_obs
         else:
@@ -235,8 +289,9 @@ class ResidualWrapper(gym.Wrapper):
     def reset_dribble_obs(self):
         if self.real_robot:
             curr_obs, local_goal_obs = self._get_real_obs_for_dribble()
+            default_pos = torch.from_numpy(self._pd_action_offset).unsqueeze(0)
             for _ in range(self.prev_actions.maxlen):
-                self.prev_actions.append(self._pd_action_offset)
+                self.prev_actions.append(default_pos)
             prev_actions = torch.cat(list(self.prev_actions), dim=-1)
         else:
             curr_obs, local_goal_obs, prev_actions = self._get_sim_obs_for_dribble()
@@ -272,7 +327,7 @@ class ResidualWrapper(gym.Wrapper):
         actual_action = np.clip(actual_action, self.action_space.low, self.action_space.high)
         actual_action = actual_action.astype(np.float32)
         if self.real_robot:
-            self.prev_actions.append(actual_action_normalized)
+            self.prev_actions.append(torch.from_numpy(actual_action_normalized).unsqueeze(0))
         else:
             self.env.task_robot.update_actions(actual_action_normalized)
         self.prev_observations.append(curr_obs)
@@ -281,6 +336,8 @@ class ResidualWrapper(gym.Wrapper):
 
         obs, _ = self.make_obs()
         obs = np.concatenate([obs.flatten(), ppo_action])
+        if self.is_fov and self.blind == 1.0:
+            reward = 0
         return obs, reward, done, info
 
     def _rescale_res(self, action):

@@ -1,7 +1,6 @@
 from typing import Optional, Tuple
 
 import dm_control.utils.transformations as tr
-import ipdb
 import numpy as np
 from dm_control import composer
 from dm_control.composer.observation import observable
@@ -21,12 +20,17 @@ OBJECT_TYPE = ['sphere', 'box']
 def get_sparse_dribble_reward(ball_xy, goal_xy, torque, dof_vel, energy_w, separate):
     dist = (goal_xy[0] - ball_xy[0]) ** 2 + (goal_xy[1] - ball_xy[1]) ** 2
     dist_rew = np.exp(-0.5 * dist)
-    energy_sum = np.sum(np.square(torque * dof_vel))
-    energy_reward = np.exp(- ENERGY_SCALE * energy_sum)
-    total_reward = (1 - energy_w) * dist_rew + energy_w * energy_reward
-    reward_dict = {"total_reward": total_reward, "distance_reward": dist_rew, "energy_reward": energy_reward}
+    # energy_sum = np.sum(np.square(torque * dof_vel))
+    # energy_reward = np.exp(- ENERGY_SCALE * energy_sum)
+    # total_reward = (1 - energy_w) * dist_rew + energy_w * energy_reward
+    task_completion = 0
+    if dist < 0.2:
+        task_completion = 1
+    total_reward = 0.6 * dist_rew + 0.4 * task_completion
+    # reward_dict = {"total_reward": total_reward, "distance_reward": dist_rew, "energy_reward": energy_reward}
 
-    return reward_dict if separate else total_reward
+    # return reward_dict if separate else total_reward
+    return total_reward
 
 
 def get_dribble_reward(robot_pos, diff_root, ball_xy, diff_ball, goal_xy, torque, dof_vel, dt, energy_w):
@@ -77,7 +81,7 @@ class DribTest(composer.Task):
                  terminate_pitch_roll: Optional[float] = 45,
                  physics_timestep: float = DEFAULT_PHYSICS_TIMESTEP,
                  control_timestep: float = DEFAULT_CONTROL_TIMESTEP,
-                 floor_friction: Tuple[float] = (1, 0.005, 0.0001),
+                 floor_friction: Tuple[float] = (0.5, 0.005, 0.0001), # f[0]=1
                  randomize_ground: bool = True,
                  add_velocity_to_observations: bool = True):
 
@@ -233,15 +237,17 @@ class DribTest(composer.Task):
 
     def sample_goal(self, random_state, ball_x, ball_y):
         # import ipdb; ipdb.set_trace()
-        x_pos = random_state.uniform(low=-3.0, high=3.0) + ball_x
-        y_pos = random_state.uniform(low=-3.0, high=3.0) + ball_y
-        x_pos, y_pos = -2, 2
+        goal_dist = 3.0
+        goal_rot = random_state.uniform(low=-0.0, high=1.0) * np.pi * 2
+        x_pos = goal_dist * np.cos(goal_rot) + ball_x
+        y_pos = goal_dist * np.sin(goal_rot) + ball_y
+        # x_pos, y_pos = 3, 3
         self._goal_loc = np.array([x_pos, y_pos, 0.125], dtype=np.float32)
 
     def sample_ball_pos(self, random_state, h):
-        # x_pos = random_state.uniform(low=-5.0, high=5.0)
-        # y_pos = random_state.uniform(low=-5.0, high=5.0)
-        x_pos, y_pos = 3, -1  # hack
+        x_pos = random_state.uniform(low=-3.0, high=3.0)
+        y_pos = random_state.uniform(low=-3.0, high=3.0)
+        # x_pos, y_pos = 1, 2
         return np.array([x_pos, y_pos, h+1e-3], dtype=np.float32)
 
     @property
