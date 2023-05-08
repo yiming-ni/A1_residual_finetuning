@@ -22,7 +22,7 @@ if is_dribble:
     num_obs = 518
     # MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randurdf_randgoal_randr_cont/nn/randurdf_randgoal_randr_cont_70000.pth'
     # MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randurdf_fixgoal_randr_fov/nn/randurdf_fixgoal_randr_fov_50000.pth'
-    MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randr_fov_small/nn/randr_fov_small_47300.pth'
+    MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/randr_fov_small/nn/randr_fov_small_50000.pth'
     # MODEL_PATH = '/home/zli/Documents/yni/A1_AMP/isaacgymenvs/runs/threshold05/nn/threshold05_65000.pth'
 
 else:

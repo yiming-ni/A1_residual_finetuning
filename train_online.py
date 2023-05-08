@@ -109,10 +109,10 @@ def main(_):
     wandb.init(project='a1',
                group=FLAGS.exp_group,
                dir=os.getenv('WANDB_LOGDIR'))
-    if FLAGS.randomize_object:
-        exp_name = FLAGS.exp_group + '_randomize_obj' + str(FLAGS.residual_scale)
+    if FLAGS.ep_update:
+        exp_name = FLAGS.exp_group + '_epu' + str(FLAGS.object_size[0]) + FLAGS.object_type
     else:
-        exp_name = FLAGS.exp_group + str(FLAGS.object_size[0]) + FLAGS.object_type
+        exp_name = FLAGS.exp_group + '_stpu' + str(FLAGS.object_size[0]) + FLAGS.object_type
     wandb.run.name = exp_name
     wandb.run.save()
     wandb.config.update(FLAGS)
