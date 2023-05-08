@@ -24,6 +24,7 @@ flags.DEFINE_string('env_name', 'A1Run-v0', 'Environment name.')
 flags.DEFINE_string('exp_group', 'default', 'Experiment group name.')
 flags.DEFINE_string('save_dir', './tmp/', 'Tensorboard logging dir.')
 flags.DEFINE_integer('seed', 42, 'Random seed.')
+flags.DEFINE_boolean('just_eval', False, 'Only evaluate a policy.')
 flags.DEFINE_integer('eval_episodes', 10,
                      'Number of episodes used for evaluation.')
 flags.DEFINE_integer('log_interval', 1000, 'Logging interval.')
@@ -68,38 +69,50 @@ config_flags.DEFINE_config_file(
 def evaluate_with_video(agent, env: gym.Env, num_episodes: int, zero_acs: bool = False):
     videos = []
 
-    # f = open('/home/yiming-ni/A1_AMP/default_ig_acs_1109.pt', "rb")
-    # f = open('/home/yiming-ni/A1_AMP/ig_drib_acs.pt', "rb")
-    # acs_gt = pickle.load(f)
-    # f = open('/home/yiming-ni/A1_AMP/default_ig_obs_1109.pt', "rb")
-    # f = open('/home/yiming-ni/A1_AMP/ig_drib_obs.pt', "rb")
-    # obs_gt = pickle.load(f)
-    # counter = 0
-
     for ep in range(num_episodes):
         observation, done = env.reset(), False
         while not done:
             if ep == 0:
                 img = env.render(mode='rgb_array', width=128, height=128)
                 videos.append(img)
-            # action = env.env.env.env.env.env.get_action_from_numpy(obs_gt[counter])
-            # import ipdb; ipdb.set_trace()
-            # action = env.env.env.env.env.env.get_action_from_numpy(observation)
-            # action = np.zeros(12)
-            # print('actions: ', action)
+
             if zero_acs:
                 action = np.zeros(12)
             else:
                 action = agent.eval_actions(observation)
 
             observation, _, done, _ = env.step(action)
-            # print("current timestep:", counter)
-            # counter += 1
-
 
     eval_info = {
         'return': np.mean(env.return_queue),
         'length': np.mean(env.length_queue),
+        'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=33, format="gif")
+    }
+    return eval_info
+
+def eval_only(agent, env, num_episodes, zero_acs=False):
+    videos = []
+    returns = []
+    for ep in range(num_episodes):
+        observation, done = env.reset(), False
+        episodic_return = 0
+        while not done:
+            if ep == 0:
+                img = env.render(mode='rgb_array', width=128, height=128)
+                videos.append(img)
+
+            if zero_acs:
+                action = np.zeros(12)
+
+            else: action = agent.eval_actions(observation)
+
+            observation, reward, done, _ = env.step(action)
+            episodic_return += reward
+        returns.append(episodic_return)
+
+    eval_info = {
+        'return': np.mean(returns),
+        'return_std': np.std(returns),
         'video': wandb.Video(np.stack(videos).transpose(0, 3, 1, 2), fps=33, format="gif")
     }
     return eval_info
@@ -196,7 +209,7 @@ def main(_):
             action_history=FLAGS.action_history)
 
         eval_env = wrap_gym(eval_env, rescale_actions=False)
-        eval_env = gym.wrappers.RecordEpisodeStatistics(env, deque_size=FLAGS.eval_episodes)
+        eval_env = gym.wrappers.RecordEpisodeStatistics(eval_env, deque_size=FLAGS.eval_episodes)
         eval_env.seed(FLAGS.seed + 42)
 
     kwargs = dict(FLAGS.config)
@@ -228,6 +241,17 @@ def main(_):
                 replay_buffer = pickle.load(f)
         except:
             print("Failed to load buffer from", load_buffer_dir)
+
+    if FLAGS.just_eval:
+        base_eval_info = eval_only(agent, eval_env, num_episodes=FLAGS.eval_episodes, zero_acs=True)
+        wandb.log({f'evaluation/base_video': base_eval_info['video']}, step=0)
+        eval_info = eval_only(agent, eval_env, num_episodes=FLAGS.eval_episodes)
+        wandb.log({f'evaluation/trained_video': eval_info['video']}, step=0)
+        print('=====base policy evaluation=====')
+        print('return mean: {} \nreturn std: {}'.format(base_eval_info['return'], base_eval_info['return_std']))
+        print('=====trained policy evaluation=====')
+        print('return mean: {} \nreturn std: {}'.format(eval_info['return'], eval_info['return_std']))
+        return
 
     videos = []
     observation, done = env.reset(), False
