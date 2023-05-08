@@ -25,6 +25,7 @@ flags.DEFINE_string('exp_group', 'default', 'Experiment group name.')
 flags.DEFINE_string('save_dir', './tmp/', 'Tensorboard logging dir.')
 flags.DEFINE_integer('seed', 42, 'Random seed.')
 flags.DEFINE_boolean('just_eval', False, 'Only evaluate a policy.')
+flags.DEFINE_boolean('test_base', False, 'Only evaluate the base policy on the real robot.')
 flags.DEFINE_integer('eval_episodes', 10,
                      'Number of episodes used for evaluation.')
 flags.DEFINE_integer('log_interval', 1000, 'Logging interval.')
@@ -137,13 +138,15 @@ def main(_):
         from real.envs.locomotion_gym_env_finetune import LocomotionGymEnv
         from real.envs.env_wrappers.residual import ResidualWrapper
         env = LocomotionGymEnv(recv_IP=FLAGS.receive_ip, recv_port=FLAGS.receive_port, send_IP=FLAGS.send_ip, send_port=FLAGS.send_port, episode_length=FLAGS.ep_len, real_ball=FLAGS.real_ball, real_pos=FLAGS.real_pos)
-        # import ipdb; ipdb.set_trace()
         env = ResidualWrapper(env, real_robot=True, residual_scale=FLAGS.residual_scale, action_history=FLAGS.action_history)
-        # import ipdb; ipdb.set_trace()
-        # for ep in range(10):
-        #     env.reset()
-        #     for timestep in range(1000):
-        #         env.step(np.zeros(12))
+
+        if FLAGS.test_base:
+            for ep in range(10):
+                env.reset()
+                for timestep in range(1000):
+                    env.step(np.zeros(12))
+            print("finished running base policy. Exit.")
+            return
     else:
         from env_utils import make_mujoco_env
         env = make_mujoco_env(
@@ -244,9 +247,9 @@ def main(_):
 
     if FLAGS.just_eval:
         base_eval_info = eval_only(agent, eval_env, num_episodes=FLAGS.eval_episodes, zero_acs=True)
-        wandb.log({f'evaluation/base_video': base_eval_info['video']}, step=0)
+        wandb.log({f'evaluation/{"base_video"}': base_eval_info['video']}, step=0)
         eval_info = eval_only(agent, eval_env, num_episodes=FLAGS.eval_episodes)
-        wandb.log({f'evaluation/trained_video': eval_info['video']}, step=0)
+        wandb.log({f'evaluation/{"trained_video"}': eval_info['video']}, step=0)
         print('=====base policy evaluation=====')
         print('return mean: {} \nreturn std: {}'.format(base_eval_info['return'], base_eval_info['return_std']))
         print('=====trained policy evaluation=====')
