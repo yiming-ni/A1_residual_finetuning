@@ -6,7 +6,7 @@ def compute_local_pos(root_pos, target_pos, root_rot):
 
     rel_target_pos = target_pos - root_pos
     local_target_pos = my_quat_rotate(heading_rot, rel_target_pos)
-    # local_target_pos[:, 2] = target_pos[:, 2]
+    local_target_pos[:, 2] = target_pos[:, 2]
     return local_target_pos
 
 
