@@ -1,6 +1,6 @@
-# A Walk in the Park
+# Residual Finetuning for A1 Quadrupedal Robot
 
-Code to replicate [A Walk in the Park: Learning to Walk in 20 Minutes With Model-Free Reinforcement Learning](https://arxiv.org/abs/2208.07860), which contains code for training a simulated or real A1 quadrupedal robot to walk. Project page: https://sites.google.com/berkeley.edu/walk-in-the-park
+Finetuning the manipulation policy for A1 robot in the real world using a customized robot interface.
 
 ## Installation
 
